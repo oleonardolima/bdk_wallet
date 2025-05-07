@@ -3447,6 +3447,7 @@ fn test_taproot_sign_missing_witness_utxo() {
             ..Default::default()
         },
     );
+    eprintln!("{:?}", result);
     assert_matches!(
         result,
         Err(SignerError::MissingWitnessUtxo),

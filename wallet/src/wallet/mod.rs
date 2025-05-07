@@ -70,7 +70,7 @@ use crate::types::*;
 use crate::wallet::{
     coin_selection::{DefaultCoinSelectionAlgorithm, Excess, InsufficientFunds},
     error::{BuildFeeBumpError, CreateTxError, MiniscriptPsbtError},
-    signer::{SignOptions, SignerError, SignerOrdering, SignersContainer, TransactionSigner},
+    signer::{SignOptions, SignerError, SignersContainer},
     tx_builder::{FeePolicy, TxBuilder, TxParams},
     utils::{check_nsequence_rbf, After, Older, SecpCtx},
 };
@@ -1117,23 +1117,6 @@ impl Wallet {
         )
     }
 
-    /// Add an external signer
-    ///
-    /// See [the `signer` module](signer) for an example.
-    pub fn add_signer(
-        &mut self,
-        keychain: KeychainKind,
-        ordering: SignerOrdering,
-        signer: Arc<dyn TransactionSigner>,
-    ) {
-        let signers = match keychain {
-            KeychainKind::External => Arc::make_mut(&mut self.signers),
-            KeychainKind::Internal => Arc::make_mut(&mut self.change_signers),
-        };
-
-        signers.add_external(signer.id(&self.secp), ordering, signer);
-    }
-
     /// Set the keymap for a given keychain.
     ///
     /// Note this does nothing if the given keychain has no descriptor because we won't
@@ -1760,6 +1743,8 @@ impl Wallet {
     /// assert!(finalized, "we should have signed all the inputs");
     /// # Ok::<(),anyhow::Error>(())
     pub fn sign(&self, psbt: &mut Psbt, sign_options: SignOptions) -> Result<bool, SignerError> {
+        let secp = SecpCtx::new();
+
         // This adds all the PSBT metadata for the inputs, which will help us later figure out how
         // to derive our keys
         self.update_psbt_with_descriptor(psbt)
@@ -1797,7 +1782,17 @@ impl Wallet {
             .iter()
             .chain(self.change_signers.signers().iter())
         {
-            signer.sign_transaction(psbt, &sign_options, &self.secp)?;
+            // TODO: (@leonardo) It should be updated to use psbt.sign(signer) instead, and probably remove this API altogether.
+            // signer.sign_transaction(psbt, &sign_options, &self.secp)?;
+
+            // FIXME: (@leonardo) It should not use `.unwrap()`, but map the `bitcoin::SigningErrors` properly.
+            let _ = match psbt.sign(signer.as_ref(), &secp) {
+                Ok(res) => Ok(res),
+                Err(e) => {
+                    eprintln!("{:#?}", e);
+                    Err(e)
+                },
+            }.unwrap();
         }
 
         // attempt to finalize
@@ -1933,7 +1928,9 @@ impl Wallet {
                                 psbt_input.final_script_witness = Some(tmp_input.witness);
                             }
                         }
-                        Err(_) => finished = false,
+                        Err(e) => {
+                            finished = false
+                        }
                     }
                 }
                 None => finished = false,
