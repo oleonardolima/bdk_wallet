@@ -6,11 +6,13 @@ use core::str::FromStr;
 
 use bdk_chain::{BlockId, ConfirmationBlockTime, TxUpdate};
 use bitcoin::{
-    absolute, hashes::Hash, transaction, Address, Amount, BlockHash, FeeRate, Network, OutPoint,
-    Transaction, TxIn, TxOut, Txid,
+    absolute,
+    hashes::Hash,
+    transaction, Address, Amount, BlockHash, FeeRate, Network, OutPoint, Transaction, TxIn, TxOut,
+    Txid,
 };
 
-use crate::{KeychainKind, Update, Wallet};
+use crate::{ KeychainKind, Update, Wallet};
 
 /// Return a fake wallet that appears to be funded for testing.
 ///
