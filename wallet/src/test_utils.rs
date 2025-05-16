@@ -116,7 +116,6 @@ impl GetKey for SignerWrapper {
     }
 }
 
-
 /// Create the [`CreateParams`] for the provided testing `descriptor` and `change_descriptor`.
 pub fn get_wallet_params(descriptor: &str, change_descriptor: Option<&str>) -> crate::CreateParams {
     if let Some(change_desc) = change_descriptor {
