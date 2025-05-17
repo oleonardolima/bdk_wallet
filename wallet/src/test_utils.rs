@@ -43,12 +43,16 @@ impl GetKey for SignerWrapper {
         secp: &bitcoin::key::Secp256k1<C>,
     ) -> Result<Option<bitcoin::PrivateKey>, Self::Error> {
         for (descriptor_pk, descriptor_sk) in self.key_map.iter() {
-            match (descriptor_sk, key_request) {
+            match (descriptor_sk, key_request.clone()) {
                 (DescriptorSecretKey::Single(single_priv), key_request) => {
                     let private_key = single_priv.key;
                     let public_key = private_key.public_key(secp);
                     let keys = BTreeMap::from([(public_key, private_key)]);
-                    return keys.get_key(key_request, secp);
+                    match keys.get_key(key_request, secp) {
+                        Ok(Some(pk)) => return Ok(Some(pk)),
+                        Ok(None) => continue,
+                        Err(e) => return Err(e),
+                    }
                 }
                 (DescriptorSecretKey::XPrv(descriptor_xkey), KeyRequest::Pubkey(public_key)) => {
                     match descriptor_pk {
@@ -63,7 +67,7 @@ impl GetKey for SignerWrapper {
                                             .to_priv(),
                                     ))
                                 }
-                                false => return Ok(None),
+                                false => continue,
                             }
                         }
                         _ => unreachable!(),
@@ -99,7 +103,7 @@ impl GetKey for SignerWrapper {
                                     ));
                                 }
                             },
-                            None => return Ok(None),
+                            None => continue,
                         },
                         Err(e) => return Err(e),
                     }
