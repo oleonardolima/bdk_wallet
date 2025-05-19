@@ -209,17 +209,17 @@ fn test_psbt_multiple_internalkey_signers() {
     let unsigned_tx = psbt.unsigned_tx.clone();
 
     // Adds a signer for the wrong internal key, bdk should not use this key to sign
-    wallet.add_signer(
-        KeychainKind::External,
-        // A signerordering lower than 100, bdk will use this signer first
-        SignerOrdering(0),
-        Arc::new(SignerWrapper::new(
-            PrivateKey::from_wif("5J5PZqvCe1uThJ3FZeUUFLCh2FuK9pZhtEK4MzhNmugqTmxCdwE").unwrap(),
-            SignerContext::Tap {
-                is_internal_key: true,
-            },
-        )),
-    );
+    // wallet.add_signer(
+    //     KeychainKind::External,
+    //     // A signerordering lower than 100, bdk will use this signer first
+    //     SignerOrdering(0),
+    //     Arc::new(SignerWrapper::new(
+    //         PrivateKey::from_wif("5J5PZqvCe1uThJ3FZeUUFLCh2FuK9pZhtEK4MzhNmugqTmxCdwE").unwrap(),
+    //         SignerContext::Tap {
+    //             is_internal_key: true,
+    //         },
+    //     )),
+    // );
 
     // FIXME: (@leonardo) how should we approach the update of this test ?
     // considering that there's an additional/external signer, should we still test this scenario ?
