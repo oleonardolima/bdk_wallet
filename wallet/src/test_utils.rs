@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use bdk_chain::{BlockId, ConfirmationBlockTime, TxUpdate};
 use bitcoin::{
     absolute,
+    bip32::DerivationPath,
     hashes::Hash,
     key::Secp256k1,
     psbt::{GetKey, GetKeyError, KeyRequest},
@@ -42,81 +43,93 @@ impl GetKey for SignerWrapper {
         key_request: KeyRequest,
         secp: &bitcoin::key::Secp256k1<C>,
     ) -> Result<Option<bitcoin::PrivateKey>, Self::Error> {
-        for (descriptor_pk, descriptor_sk) in self.key_map.iter() {
-            match (descriptor_sk, key_request.clone()) {
-                (DescriptorSecretKey::Single(single_priv), key_request) => {
-                    let private_key = single_priv.key;
-                    let public_key = private_key.public_key(secp);
-                    let keys = BTreeMap::from([(public_key, private_key)]);
-                    match keys.get_key(key_request, secp) {
-                        Ok(Some(pk)) => return Ok(Some(pk)),
-                        Ok(None) => continue,
-                        Err(e) => return Err(e),
-                    }
-                }
-                (DescriptorSecretKey::XPrv(descriptor_xkey), KeyRequest::Pubkey(public_key)) => {
-                    match descriptor_pk {
-                        DescriptorPublicKey::XPub(descriptor_xpub) => {
-                            let xpub = descriptor_xpub.xkey;
-                            match xpub.public_key.eq(&public_key.inner) {
-                                true => {
-                                    return Ok(Some(
-                                        descriptor_xkey
-                                            .xkey
-                                            .derive_priv(secp, &descriptor_xkey.derivation_path)?
-                                            .to_priv(),
-                                    ))
-                                }
-                                false => continue,
-                            }
-                        }
-                        _ => unreachable!(),
-                    }
-                }
-                (
-                    DescriptorSecretKey::XPrv(descriptor_xkey),
-                    ref key_request @ KeyRequest::Bip32(ref key_source),
-                ) => {
-                    let xpriv = descriptor_xkey.xkey;
-                    match xpriv.get_key(key_request.clone(), secp) {
-                        Ok(Some(private_key)) => return Ok(Some(private_key)),
-                        Ok(None) => match descriptor_xkey.matches(key_source, secp) {
-                            Some(_derivation_path) => match &descriptor_xkey.origin {
-                                Some((_origin_fingerprint, origin_derivation_path)) => {
-                                    let (_fingerprint, derivation_path) = key_source;
-                                    let derivation_path =
-                                        &derivation_path[origin_derivation_path.len()..];
-                                    return Ok(Some(
-                                        descriptor_xkey
-                                            .xkey
-                                            .derive_priv(secp, &derivation_path)?
-                                            .to_priv(),
-                                    ));
-                                }
-                                None => {
-                                    let (_fingerprint, derivation_path) = key_source;
-                                    return Ok(Some(
-                                        descriptor_xkey
-                                            .xkey
-                                            .derive_priv(secp, &derivation_path)?
-                                            .to_priv(),
-                                    ));
-                                }
-                            },
-                            None => continue,
-                        },
-                        Err(e) => return Err(e),
-                    }
-                }
-                (
-                    DescriptorSecretKey::XPrv(_descriptor_xkey),
-                    KeyRequest::XOnlyPubkey(_xonly_public_key),
-                ) => return Err(GetKeyError::NotSupported), // TODO: (@leonardo) should we handle this ?
-                (DescriptorSecretKey::MultiXPrv(_descriptor_multi_xkey), _) => unimplemented!(),
-                _ => unreachable!(),
+        for (_, descriptor_sk) in self.key_map.iter() {
+            let wrapper = DescriptorSecretKeyWrapper::new(descriptor_sk.clone());
+            match wrapper.get_key(key_request.clone(), secp) {
+                Ok(Some(key)) => return Ok(Some(key)),
+                Ok(None) => continue,
+                Err(e) => return Err(e),
             }
         }
         Ok(None)
+    }
+}
+/// TODO: (@leonardo) add a documentation if this stays in bdk.
+pub struct DescriptorSecretKeyWrapper {
+    secret_key: DescriptorSecretKey,
+}
+
+impl DescriptorSecretKeyWrapper {
+    /// .
+    pub fn new(secret_key: DescriptorSecretKey) -> Self {
+        Self { secret_key }
+    }
+}
+
+impl GetKey for DescriptorSecretKeyWrapper {
+    type Error = GetKeyError;
+
+    fn get_key<C: bitcoin::secp256k1::Signing>(
+        &self,
+        key_request: KeyRequest,
+        secp: &Secp256k1<C>,
+    ) -> Result<Option<bitcoin::PrivateKey>, Self::Error> {
+        match (self.secret_key.clone(), key_request) {
+            (DescriptorSecretKey::Single(single_priv), key_request) => {
+                let private_key = single_priv.key;
+                let public_key = private_key.public_key(secp);
+                let keys = BTreeMap::from([(public_key, private_key)]);
+                return keys.get_key(key_request, secp);
+            }
+            (DescriptorSecretKey::XPrv(descriptor_xkey), KeyRequest::Pubkey(public_key)) => {
+                let xpriv = descriptor_xkey.xkey;
+                let private_key = xpriv.private_key;
+                let pk = private_key.public_key(secp);
+                if public_key.inner.eq(&pk) {
+                    return Ok(Some(
+                        descriptor_xkey
+                            .xkey
+                            .derive_priv(secp, &descriptor_xkey.derivation_path)?
+                            .to_priv(),
+                    ));
+                }
+            }
+            (
+                DescriptorSecretKey::XPrv(descriptor_xkey),
+                ref key_request @ KeyRequest::Bip32(ref key_source),
+            ) => {
+                if let Some(key) = descriptor_xkey.xkey.get_key(key_request.clone(), secp)? {
+                    return Ok(Some(key));
+                }
+
+                if let Some(_derivation_path) = descriptor_xkey.matches(key_source, secp) {
+                    let derivation_path: &DerivationPath = match &descriptor_xkey.origin {
+                        Some((_fp, origin_derivation_path)) => {
+                            let (_fp, derivation_path) = key_source;
+                            &derivation_path[origin_derivation_path.len()..].into()
+                        }
+                        None => {
+                            let (_fp, derivation_path) = key_source;
+                            derivation_path
+                        }
+                    };
+
+                    return Ok(Some(
+                        descriptor_xkey
+                            .xkey
+                            .derive_priv(secp, derivation_path)?
+                            .to_priv(),
+                    ));
+                }
+            }
+            (
+                DescriptorSecretKey::XPrv(descriptor_xkey),
+                KeyRequest::XOnlyPubkey(xonly_public_key),
+            ) => return Err(GetKeyError::NotSupported),
+            (DescriptorSecretKey::MultiXPrv(_), _) => unimplemented!(),
+            _ => unreachable!(),
+        }
+        return Ok(None);
     }
 }
 
