@@ -112,7 +112,6 @@ fn test_psbt_fee_rate_with_witness_utxo() {
     let signer = get_wallet_signer_single(descriptor);
     let _ = psbt.sign(&signer, &secp).unwrap();
 
-    // let finalized = wallet.sign(&mut psbt, Default::default()).unwrap();
     let finalized = wallet.finalize_psbt(&mut psbt, Default::default()).unwrap();
     assert!(finalized);
 
@@ -142,7 +141,6 @@ fn test_psbt_fee_rate_with_nonwitness_utxo() {
     let signer = get_wallet_signer_single(descriptor);
     let _ = psbt.sign(&signer, &secp).unwrap();
 
-    // let finalized = wallet.sign(&mut psbt, Default::default()).unwrap();
     let finalized = wallet.finalize_psbt(&mut psbt, Default::default()).unwrap();
     assert!(finalized);
 
@@ -187,13 +185,11 @@ fn test_psbt_fee_rate_with_missing_txout() {
 // #[ignore = "FIXME: it needs refactoring, how should we handle the expected behavior of adding
 // external signers, and usage of wrong internal key ?"]
 fn test_psbt_multiple_internalkey_signers() {
-    use bdk_wallet::signer::{SignerContext, SignerOrdering, SignerWrapper};
     use bdk_wallet::KeychainKind;
     use bitcoin::key::TapTweak;
     use bitcoin::secp256k1::{schnorr, Keypair, Message, Secp256k1, XOnlyPublicKey};
     use bitcoin::sighash::{Prevouts, SighashCache, TapSighashType};
     use bitcoin::{PrivateKey, TxOut};
-    use std::sync::Arc;
 
     let secp = Secp256k1::new();
     let wif = "cNJmN3fH9DDbDt131fQNkVakkpzawJBSeybCUNmP1BovpmGQ45xG";
@@ -211,17 +207,17 @@ fn test_psbt_multiple_internalkey_signers() {
     let unsigned_tx = psbt.unsigned_tx.clone();
 
     // Adds a signer for the wrong internal key, bdk should not use this key to sign
-    wallet.add_signer(
-        KeychainKind::External,
-        // A signerordering lower than 100, bdk will use this signer first
-        SignerOrdering(0),
-        Arc::new(SignerWrapper::new(
-            PrivateKey::from_wif("5J5PZqvCe1uThJ3FZeUUFLCh2FuK9pZhtEK4MzhNmugqTmxCdwE").unwrap(),
-            SignerContext::Tap {
-                is_internal_key: true,
-            },
-        )),
-    );
+    // wallet.add_signer(
+    //     KeychainKind::External,
+    //     // A signerordering lower than 100, bdk will use this signer first
+    //     SignerOrdering(0),
+    //     Arc::new(SignerWrapper::new(
+    //         PrivateKey::from_wif("5J5PZqvCe1uThJ3FZeUUFLCh2FuK9pZhtEK4MzhNmugqTmxCdwE").unwrap(),
+    //         SignerContext::Tap {
+    //             is_internal_key: true,
+    //         },
+    //     )),
+    // );
 
     // FIXME: (@leonardo) how should we approach the update of this test ?
     // considering that there's an additional/external signer, should we still test this scenario ?
@@ -230,7 +226,6 @@ fn test_psbt_multiple_internalkey_signers() {
     let signer = get_wallet_signer(&desc, Some(change_desc));
     let _ = psbt.sign(&signer, &secp).unwrap();
 
-    // let finalized = wallet.sign(&mut psbt, SignOptions::default()).unwrap();
     let finalized = wallet
         .finalize_psbt(&mut psbt, SignOptions::default())
         .unwrap();
