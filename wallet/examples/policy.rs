@@ -14,7 +14,7 @@ use std::error::Error;
 
 use bdk_wallet::bitcoin::Network;
 use bdk_wallet::descriptor::{policy::BuildSatisfaction, ExtractPolicy, IntoWalletDescriptor};
-use bdk_wallet::signer::SignersContainer;
+// use bdk_wallet::signer::SignersContainer;
 
 /// This example describes the use of the BDK's [`bdk_wallet::descriptor::policy`] module.
 ///
@@ -44,14 +44,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Example Descriptor for policy analysis : {}", wallet_desc);
 
-    // Create the signer with the keymap and descriptor.
-    let signers_container = SignersContainer::build(keymap, &wallet_desc, &secp);
+    // // Create the signer with the keymap and descriptor.
+    // let signers_container = SignersContainer::build(keymap, &wallet_desc, &secp);
 
     // Extract the Policy from the given descriptor and signer.
     // Note that Policy is a wallet specific structure. It depends on the the descriptor, and
     // what the concerned wallet with a given signer can sign for.
     let policy = wallet_desc
-        .extract_policy(&signers_container, BuildSatisfaction::None, &secp)?
+        .extract_policy(BuildSatisfaction::None, &secp)?
         .expect("We expect a policy");
 
     println!("Derived Policy for the descriptor {:#?}", policy);
