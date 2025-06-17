@@ -1319,12 +1319,12 @@ impl Wallet {
         let internal_descriptor = keychains.get(&KeychainKind::Internal);
 
         let external_policy = external_descriptor
-            .extract_policy(&self.signers, BuildSatisfaction::None, &self.secp)?
+            .extract_policy(BuildSatisfaction::None, &self.secp)?
             .unwrap();
         let internal_policy = internal_descriptor
             .map(|desc| {
                 Ok::<_, CreateTxError>(
-                    desc.extract_policy(&self.change_signers, BuildSatisfaction::None, &self.secp)?
+                    desc.extract_policy(BuildSatisfaction::None, &self.secp)?
                         .unwrap(),
                 )
             })
@@ -1899,16 +1899,8 @@ impl Wallet {
 
     /// Return the spending policies for the wallet's descriptor
     pub fn policies(&self, keychain: KeychainKind) -> Result<Option<Policy>, DescriptorError> {
-        let signers = match keychain {
-            KeychainKind::External => &self.signers,
-            KeychainKind::Internal => &self.change_signers,
-        };
-
-        self.public_descriptor(keychain).extract_policy(
-            signers,
-            BuildSatisfaction::None,
-            &self.secp,
-        )
+        self.public_descriptor(keychain)
+            .extract_policy(BuildSatisfaction::None, &self.secp)
     }
 
     /// Returns the descriptor used to create addresses for a particular `keychain`.
