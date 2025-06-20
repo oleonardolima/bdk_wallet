@@ -24,3 +24,10 @@ path = "fuzz_targets/wallet.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "test"
+path = "fuzz_targets/test.rs"
+test = false
+doc = false
+bench = false
