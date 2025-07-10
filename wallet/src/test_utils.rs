@@ -47,14 +47,31 @@ fn new_funded_wallet(descriptor: &str, change_descriptor: Option<&str>) -> (Wall
         ..new_tx(0)
     };
 
-    let tx1 = Transaction {
-        input: vec![TxIn {
-            previous_output: OutPoint {
-                txid: tx0.compute_txid(),
-                vout: 0,
-            },
-            ..Default::default()
+    let tx0_1 = Transaction {
+        output: vec![TxOut {
+            value: Amount::from_sat(75_000),
+            script_pubkey: receive_address.script_pubkey(),
         }],
+        ..new_tx(0)
+    };
+
+    let tx1 = Transaction {
+        input: vec![
+            TxIn {
+                previous_output: OutPoint {
+                    txid: tx0.compute_txid(),
+                    vout: 0,
+                },
+                ..Default::default()
+            },
+            TxIn {
+                previous_output: OutPoint {
+                    txid: tx0.compute_txid(),
+                    vout: 0,
+                },
+                ..Default::default()
+            },
+        ],
         output: vec![
             TxOut {
                 value: Amount::from_sat(50_000),

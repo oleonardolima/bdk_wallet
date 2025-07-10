@@ -22,7 +22,7 @@ fuzz_target!(|data: &[u8]| {
     // creates initial wallet.
     let mut db_conn = Connection::open_in_memory()
         .expect("Should start an in-memory database connection successfully!");
-    let wallet = Wallet::create(INTERNAL_DESCRIPTOR, EXTERNAL_DESCRIPTOR)
+    let wallet = Wallet::create(EXTERNAL_DESCRIPTOR, INTERNAL_DESCRIPTOR)
         .network(NETWORK)
         .create_wallet(&mut db_conn);
 
@@ -33,8 +33,16 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // fuzzed code goes here.
+    // loop {
+    //     let mut new_data = data;
+    //     let wallet_action = consume_wallet_action(&mut new_data);
+    //     match wallet_action {
+    //         None => return,
+    //         Some(action) => todo!(),
+    //     };
+    // };
     let mut new_data = data;
-    while let Some(action) = consume_action(&mut new_data) {
+    while let Some(action) = consume_wallet_action(&mut new_data) {
         match action {
             WalletAction::ApplyUpdate => {
                 let mut new_data = data;
@@ -103,8 +111,8 @@ fuzz_target!(|data: &[u8]| {
 
                 // generate fuzzed load
                 wallet = Wallet::load()
-                    .descriptor(KeychainKind::Internal, Some(INTERNAL_DESCRIPTOR))
                     .descriptor(KeychainKind::External, Some(EXTERNAL_DESCRIPTOR))
+                    .descriptor(KeychainKind::Internal, Some(INTERNAL_DESCRIPTOR))
                     .check_network(NETWORK)
                     .check_genesis_hash(expected_genesis_hash)
                     .load_wallet(&mut db_conn)

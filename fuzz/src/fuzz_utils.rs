@@ -245,7 +245,7 @@ pub enum WalletAction {
     PersistAndLoad,
 }
 
-pub fn consume_action(data: &mut &[u8]) -> Option<WalletAction> {
+pub fn consume_wallet_action(data: &mut &[u8]) -> Option<WalletAction> {
     if data.is_empty() {
         return None;
     }

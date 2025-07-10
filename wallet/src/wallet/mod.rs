@@ -861,6 +861,17 @@ impl Wallet {
 
     /// Return the list of unspent outputs of this wallet
     pub fn list_unspent(&self) -> impl Iterator<Item = LocalOutput> + '_ {
+        println!("{:#?}", self.chain);
+        // println!("{:#?}", self.indexed_graph);
+        println!("{:#?}", self.indexed_graph.graph());
+        println!(
+            "{:#?}",
+            self.indexed_graph.graph().try_list_canonical_txs(
+                &self.chain,
+                self.chain.tip().block_id(),
+                CanonicalizationParams::default()
+            ).map(|tx| tx.unwrap()).collect::<Vec<_>>()
+        );
         self.indexed_graph
             .graph()
             .filter_chain_unspents(

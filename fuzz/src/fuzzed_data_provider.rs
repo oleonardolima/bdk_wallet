@@ -57,7 +57,14 @@ pub fn consume_bool(data: &mut &[u8]) -> bool {
 }
 
 pub fn consume_byte(data: &mut &[u8]) -> u8 {
-    consume_bytes(data, 1)[0]
+    if data.is_empty() {
+        return 0;
+    }
+
+    let byte = data[0];
+    *data = &data[1..];
+
+    byte
 }
 
 #[allow(dead_code)]
