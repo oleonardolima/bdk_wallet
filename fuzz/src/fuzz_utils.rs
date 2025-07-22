@@ -37,8 +37,8 @@ pub fn consume_keychain_indices(
 ) -> BTreeMap<KeychainKind, u32> {
     let mut indices = BTreeMap::new();
     if consume_bool(data) {
-        let count = consume_u8(data) as u32;
-        let start = consume_u8(data) as u32;
+        let count = consume_u8(data).unwrap() as u32;
+        let start = consume_u8(data).unwrap() as u32;
         indices.extend((start..count).map(|idx| (keychain, idx)))
     }
     indices
@@ -72,22 +72,22 @@ pub fn consume_spk(data: &mut &[u8], wallet: &mut Wallet) -> bitcoin::ScriptBuf 
 pub fn consume_txs(mut data: &[u8], wallet: &mut Wallet) -> Vec<Arc<Transaction>> {
     // TODO: (@leonardo) should this be a usize ?
 
-    let count = consume_u8(&mut data);
+    let count = consume_u8(&mut data).unwrap();
     let mut txs = Vec::with_capacity(count as usize);
     for _ in 0..count {
-        let version = consume_u32(&mut data);
+        let version = consume_u32(&mut data).unwrap();
         // TODO: (@leonardo) should we use the Version::consensus_decode instead ?
         let version = Version(version as i32);
 
-        let locktime = consume_u32(&mut data);
+        let locktime = consume_u32(&mut data).unwrap();
         let locktime = LockTime::from_consensus(locktime);
 
-        let txin_count = consume_u8(&mut data);
+        let txin_count = consume_u8(&mut data).unwrap();
         let mut tx_inputs = Vec::with_capacity(txin_count as usize);
 
         for _ in 0..txin_count {
             let prev_txid = consume_txid(&mut data);
-            let prev_vout = consume_u32(&mut data);
+            let prev_vout = consume_u32(&mut data).unwrap();
             let prev_output = OutPoint::new(prev_txid, prev_vout);
             let tx_input = TxIn {
                 previous_output: prev_output,
@@ -96,12 +96,12 @@ pub fn consume_txs(mut data: &[u8], wallet: &mut Wallet) -> Vec<Arc<Transaction>
             tx_inputs.push(tx_input);
         }
 
-        let txout_count = consume_u8(&mut data);
+        let txout_count = consume_u8(&mut data).unwrap();
         let mut tx_outputs = Vec::with_capacity(txout_count as usize);
 
         for _ in 0..txout_count {
             let spk = consume_spk(&mut data, wallet);
-            let sats = (consume_u8(&mut data) as u64) * 1_000;
+            let sats = (consume_u8(&mut data).unwrap() as u64) * 1_000;
             let amount = Amount::from_sat(sats);
             let tx_output = TxOut {
                 value: amount,
@@ -124,14 +124,14 @@ pub fn consume_txs(mut data: &[u8], wallet: &mut Wallet) -> Vec<Arc<Transaction>
 
 pub fn consume_txouts(mut data: &[u8]) -> BTreeMap<OutPoint, TxOut> {
     // TODO: (@leonardo) should this be a usize ?
-    let count = consume_u8(&mut data);
+    let count = consume_u8(&mut data).unwrap();
     let mut txouts = BTreeMap::new();
     for _ in 0..count {
         let prev_txid = consume_txid(&mut data);
-        let prev_vout = consume_u32(&mut data);
+        let prev_vout = consume_u32(&mut data).unwrap();
         let prev_output = OutPoint::new(prev_txid, prev_vout);
 
-        let sats = (consume_u8(&mut data) as u64) * 1_000;
+        let sats = (consume_u8(&mut data).unwrap() as u64) * 1_000;
         let amount = Amount::from_sat(sats);
 
         // TODO: (@leonardo) should we use different spks ?
@@ -151,10 +151,10 @@ pub fn consume_anchors(
 ) -> BTreeSet<(ConfirmationBlockTime, Txid)> {
     let mut anchors = BTreeSet::new();
 
-    let count = consume_u8(&mut data);
+    let count = consume_u8(&mut data).unwrap();
     // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's impls)
     for _ in 0..count {
-        let block_height = consume_u32(&mut data);
+        let block_height = consume_u32(&mut data).unwrap();
         let block_hash = consume_block_hash(&mut data);
 
         let block_id = BlockId {
@@ -162,7 +162,7 @@ pub fn consume_anchors(
             hash: block_hash,
         };
 
-        let confirmation_time = consume_u64(&mut data);
+        let confirmation_time = consume_u64(&mut data).unwrap();
 
         let anchor = ConfirmationBlockTime {
             block_id,
@@ -184,10 +184,10 @@ pub fn consume_seen_ats(
 ) -> HashSet<(Txid, u64)> {
     let mut seen_ats = HashSet::new();
 
-    let count = consume_u8(&mut data);
+    let count = consume_u8(&mut data).unwrap();
     // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's impls)
     for _ in 0..count {
-        let time = cmp::min(consume_u64(&mut data), i64::MAX as u64 - 1);
+        let time = cmp::min(consume_u64(&mut data).unwrap(), i64::MAX as u64 - 1);
 
         if let Some(txid) = unconfirmed_txids.pop_front() {
             seen_ats.insert((txid, time));
@@ -205,10 +205,10 @@ pub fn consume_evicted_ats(
 ) -> HashSet<(Txid, u64)> {
     let mut evicted_at = HashSet::new();
 
-    let count = consume_u8(&mut data);
+    let count = consume_u8(&mut data).unwrap();
     // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's impls)
     for _ in 0..count {
-        let time = cmp::min(consume_u64(&mut data), i64::MAX as u64 - 1);
+        let time = cmp::min(consume_u64(&mut data).unwrap(), i64::MAX as u64 - 1);
         if let Some(txid) = unconfirmed_txids.pop_front() {
             evicted_at.insert((txid, time));
         } else {
@@ -226,7 +226,7 @@ pub fn consume_checkpoint(mut data: &[u8], wallet: &mut Wallet) -> CheckPoint {
     let _tip_hash = tip.hash();
     let tip_height = tip.height();
 
-    let count = consume_u8(&mut data);
+    let count = consume_u8(&mut data).unwrap();
     // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's impls)
     for i in 1..count {
         let height = tip_height + i as u32;
@@ -250,7 +250,7 @@ pub fn consume_wallet_action(data: &mut &[u8]) -> Option<WalletAction> {
         return None;
     }
 
-    let byte = consume_byte(data);
+    let byte = consume_byte(data).unwrap();
 
     if byte == 0x00 {
         Some(WalletAction::ApplyUpdate)
@@ -271,11 +271,11 @@ pub fn consume_tx_builder<'a>(
 
     let utxo = wallet.list_unspent().next();
 
-    let recipients_count = consume_byte(&mut new_data) as usize;
+    let recipients_count = consume_byte(&mut new_data).unwrap() as usize;
     let mut recipients = Vec::with_capacity(recipients_count);
     for _ in 0..recipients_count {
         let spk = consume_spk(&mut new_data, wallet);
-        let amount = consume_byte(&mut new_data) as u64 * 1_000;
+        let amount = consume_byte(&mut new_data).unwrap() as u64 * 1_000;
         let amount = bitcoin::Amount::from_sat(amount);
         recipients.push((spk, amount));
     }
@@ -314,7 +314,7 @@ pub fn consume_tx_builder<'a>(
     // };
 
     if consume_bool(&mut new_data) {
-        let mut rate = consume_byte(&mut new_data) as u64;
+        let mut rate = consume_byte(&mut new_data).unwrap() as u64;
         if consume_bool(&mut new_data) {
             rate *= 1_000;
         }
@@ -326,7 +326,7 @@ pub fn consume_tx_builder<'a>(
     if consume_bool(&mut new_data) {
         // FIXME: this can't be * 100 as as i initially set it to be as rust-bitcoin
         // panics internally on overflowing Amount additions.
-        let mut fee = consume_byte(&mut new_data) as u64;
+        let mut fee = consume_byte(&mut new_data).unwrap() as u64;
         if consume_bool(&mut new_data) {
             fee *= 1_000;
         }
@@ -353,7 +353,7 @@ pub fn consume_tx_builder<'a>(
     }
 
     if consume_bool(&mut new_data) {
-        let sighash = bitcoin::psbt::PsbtSighashType::from_u32(consume_byte(&mut new_data) as u32);
+        let sighash = bitcoin::psbt::PsbtSighashType::from_u32(consume_byte(&mut new_data).unwrap() as u32);
         tx_builder.sighash(sighash);
     }
 
@@ -367,13 +367,13 @@ pub fn consume_tx_builder<'a>(
     }
 
     if consume_bool(&mut new_data) {
-        let lock_time = consume_u32(&mut new_data);
+        let lock_time = consume_u32(&mut new_data).unwrap();
         let lock_time = bitcoin::absolute::LockTime::from_consensus(lock_time);
         tx_builder.nlocktime(lock_time);
     }
 
     if consume_bool(&mut new_data) {
-        let version = consume_u32(&mut new_data);
+        let version = consume_u32(&mut new_data).unwrap();
         tx_builder.version(version as i32);
     }
 
@@ -427,7 +427,7 @@ pub fn consume_sign_options(data: &[u8]) -> SignOptions {
     }
 
     if consume_bool(&mut new_data) {
-        let height = consume_u32(&mut new_data);
+        let height = consume_u32(&mut new_data).unwrap();
         sign_options.assume_height = Some(height);
     }
 
