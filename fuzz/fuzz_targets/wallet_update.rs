@@ -132,6 +132,270 @@ macro_rules! try_consume_txs {
     }};
 }
 
+#[macro_export]
+macro_rules! try_consume_byte {
+    ($data_iter:expr) => {
+        match $data_iter.next() {
+            Some(byte) => byte,
+            None => return,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! try_consume_bytes {
+    ($data_iter:expr, $num_bytes:expr) => {{
+        let mut bytes = Vec::new();
+        for _ in 0..$num_bytes {
+            match $data_iter.next() {
+                Some(byte) => bytes.push(*byte),
+                None => return,
+            }
+        }
+        bytes
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_u8 {
+    ($data_iter:expr) => {
+        match $data_iter.next() {
+            Some(byte) => *byte,
+            None => return,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! try_consume_u32 {
+    ($data_iter:expr) => {{
+        let mut bytes = [0u8; 4];
+        for i in 0..4 {
+            match $data_iter.next() {
+                Some(byte) => bytes[i] = *byte,
+                None => return,
+            }
+        }
+        u32::from_le_bytes(bytes)
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_u64 {
+    ($data_iter:expr) => {{
+        let mut bytes = [0u8; 8];
+        for i in 0..8 {
+            match $data_iter.next() {
+                Some(byte) => bytes[i] = *byte,
+                None => return,
+            }
+        }
+        u64::from_le_bytes(bytes)
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_bool {
+    ($data_iter:expr) => {
+        match $data_iter.next() {
+            Some(byte) => *byte != 0,
+            None => return,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! try_consume_txs {
+    ($data:expr, $wallet:expr) => {{
+        let mut data_iter = $data.into_iter();
+        let count = try_consume_u8!(data_iter) as usize;
+        let mut txs = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            let version = try_consume_u32!(data_iter);
+            // TODO: (@leonardo) should we use the Version::consensus_decode instead ?
+            let version = Version(version as i32);
+
+            let lock_time = try_consume_u32!(data_iter);
+            let lock_time = LockTime::from_consensus(lock_time);
+
+            let txin_count = try_consume_u8!(data_iter);
+            let mut tx_inputs = Vec::with_capacity(txin_count as usize);
+
+            for _ in 0..txin_count {
+                let prev_txid = consume_txid($data);
+                let prev_vout = try_consume_u32!(data_iter);
+                let prev_output = OutPoint::new(prev_txid, prev_vout);
+                let tx_input = TxIn {
+                    previous_output: prev_output,
+                    ..Default::default()
+                };
+                tx_inputs.push(tx_input);
+            }
+
+            let txout_count = try_consume_u8!(data_iter);
+            let mut tx_outputs = Vec::with_capacity(txout_count as usize);
+
+            for _ in 0..txout_count {
+                let spk = consume_spk($data, $wallet);
+                let sats = (try_consume_u8!(data_iter) as u64) * 1_000;
+                let amount = Amount::from_sat(sats);
+                let tx_output = TxOut {
+                    value: amount,
+                    script_pubkey: spk,
+                };
+                tx_outputs.push(tx_output);
+            }
+
+            let tx = Transaction {
+                version,
+                lock_time,
+                input: tx_inputs,
+                output: tx_outputs,
+            };
+
+            txs.push(tx.into());
+        }
+
+        txs
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_txouts {
+    ($data:expr) => {{
+        let mut data_iter = $data.iter();
+
+        // TODO: (@leonardo) should this be a usize ?
+        let count = try_consume_u8!(data_iter);
+        let mut txouts = BTreeMap::new();
+        for _ in 0..count {
+            let prev_txid = consume_txid($data);
+            let prev_vout = try_consume_u32!(data_iter);
+            let prev_output = OutPoint::new(prev_txid, prev_vout);
+
+            let sats = (try_consume_u8!(data_iter) as u64) * 1_000;
+            let amount = Amount::from_sat(sats);
+
+            // TODO: (@leonardo) should we use different spks ?
+            let txout = TxOut {
+                value: amount,
+                script_pubkey: Default::default(),
+            };
+
+            txouts.insert(prev_output, txout);
+        }
+        txouts
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_anchors {
+    ($data:expr, $unconfirmed_txids:expr) => {{
+        let mut data_iter = $data.iter();
+        let mut anchors = BTreeSet::new();
+
+        let count = try_consume_u8!($data_iter);
+        // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's
+        // impls)
+        for _ in 0..count {
+            let block_height = try_consume_u32!($data_iter);
+            let block_hash = consume_block_hash($data);
+
+            let block_id = BlockId {
+                height: block_height,
+                hash: block_hash,
+            };
+
+            let confirmation_time = try_consume_u64!($data_iter);
+
+            let anchor = ConfirmationBlockTime {
+                block_id,
+                confirmation_time,
+            };
+
+            if let Some(txid) = unconfirmed_txids.pop_front() {
+                anchors.insert((anchor, txid));
+            } else {
+                break;
+            }
+        }
+        anchors
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_seen_ats {
+    ($data:expr, $unconfirmed_txids:expr) => {{
+        let mut data_iter = $data.iter();
+        let mut seen_ats = HashSet::new();
+
+        let count = try_consume_u8!(data_iter).unwrap();
+        // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's
+        // impls)
+        for _ in 0..count {
+            let time = cmp::min(try_consume_u64!(data_iter).unwrap(), i64::MAX as u64 - 1);
+
+            if let Some(txid) = $unconfirmed_txids.pop_front() {
+                seen_ats.insert((txid, time));
+            } else {
+                let txid = consume_txid($data);
+                seen_ats.insert((txid, time));
+            }
+        }
+        seen_ats
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_evicted_ats {
+    ($data:expr, $unconfirmed_txids:expr) => {{
+        let mut data_iter = $data.iter();
+        let mut evicted_at = HashSet::new();
+
+        let count = try_consume_u8!(data_iter);
+        // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's
+        // impls)
+        for _ in 0..count {
+            let time = cmp::min(try_consume_u64!(data_iter).unwrap(), i64::MAX as u64 - 1);
+            if let Some(txid) = $unconfirmed_txids.pop_front() {
+                evicted_at.insert((txid, time));
+            } else {
+                let txid = consume_txid($data);
+                evicted_at.insert((txid, time));
+            }
+        }
+
+        evicted_at
+    }};
+}
+
+#[macro_export]
+macro_rules! try_consume_checkpoint {
+    ($data:expr, $wallet:expr) => {{
+        let mut data_iter = $data.iter();
+
+        let mut tip = wallet.latest_checkpoint();
+
+        let _tip_hash = tip.hash();
+        let tip_height = tip.height();
+
+        let count = try_consume_u8!(data_iter).unwrap();
+        // FIXME: (@leonardo) should we use while limited by a flag instead ? (as per antoine's
+        // impls)
+        for i in 1..count {
+            let height = tip_height + i as u32;
+            let hash = consume_block_hash($data);
+
+            let block_id = BlockId { height, hash };
+
+            tip = tip.push(block_id).unwrap();
+        }
+        tip
+    }};
+}
+
+
 // descriptors
 const INTERNAL_DESCRIPTOR: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/0/*)";
 const EXTERNAL_DESCRIPTOR: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
