@@ -19,8 +19,8 @@ libfuzzer-sys = "0.4"
 bdk_wallet = { path = "../wallet" }
 
 [[bin]]
-name = "wallet"
-path = "fuzz_targets/wallet_update.rs"
+name = "bdk_wallet"
+path = "fuzz_targets/bdk_wallet.rs"
 test = false
 doc = false
 bench = false
