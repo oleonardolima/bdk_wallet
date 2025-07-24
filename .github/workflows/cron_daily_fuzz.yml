@@ -47,17 +47,19 @@ jobs:
       - name: Install cargo-fuzz
         if: steps.cache-cargo-fuzz.outputs.cache-hit != 'true'
         run: |
-          cargo_fuzz_version = "$CARGO_FUZZ_VERSION"
-          cargo install --root "${{ runner.tool_cache }}/cargo-fuzz" --version $cargo_fuzz_version cargo-fuzz --locked
+          cargo install --root "${{ runner.tool_cache }}/cargo-fuzz" --version $CARGO_FUZZ_VERSION cargo-fuzz --locked
+        env:
+          CARGO_FUZZ_VERSION: ${{ env.CARGO_FUZZ_VERSION }}
 
       - name: Add cargo-fuzz to PATH
         run: echo "${{ runner.tool_cache }}/cargo-fuzz/bin" >> $GITHUB_PATH
 
       - name: Build & Run Fuzz Target
         run: |
-          fuzz_time = "$FUZZ_TIME"
           cargo fuzz build ${{ matrix.fuzz_target }}
-          cargo fuzz run ${{ matrix.fuzz_target }} -- -max_total_time=$fuzz_time
+          cargo fuzz run ${{ matrix.fuzz_target }} -- -max_total_time=$FUZZ_TIME
+        env:
+          FUZZ_TIME: ${{ env.FUZZ_TIME }}
 
       - name: Upload fuzzing artifacts on failure
         uses: actions/upload-artifact@v4
