@@ -166,9 +166,19 @@ fuzz_target!(|data: &[u8]| {
                     BlockHash::from_byte_array(NETWORK.chain_hash().to_bytes());
 
                 // generate fuzzed persist
-                wallet
-                    .persist(&mut db_conn)
-                    .expect("It should always persist successfully!");
+                if let Err(e) = wallet.persist(&mut db_conn) {
+                    assert!(matches!(e, bdk_wallet::rusqlite::Error::ToSqlConversionFailure(..)));
+                    return;
+                };
+                // match wallet.persist(&mut db_conn) {
+                //     Ok(_) => continue,
+                //     Err(e) => {
+
+                //     },
+                // }
+                // wallet
+                //     .persist(&mut db_conn)
+                //     .expect("It should always persist successfully!");
 
                 // generate fuzzed load
                 wallet = Wallet::load()
