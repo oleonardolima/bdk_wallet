@@ -15,10 +15,10 @@ const STOP_GAP: usize = 5;
 const PARALLEL_REQUESTS: usize = 5;
 
 const DB_PATH: &str = "bdk-example-esplora-async.sqlite";
-const NETWORK: Network = Network::Testnet4;
+const NETWORK: Network = Network::Testnet;
 const EXTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/0/*)";
 const INTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
-const ESPLORA_URL: &str = "https://mempool.space/testnet4/api";
+const ESPLORA_URL: &str = "https://blockstream.info/testnet/api";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
