@@ -117,6 +117,7 @@ pub struct ChangeSet {
     /// Changes to [`KeychainTxOutIndex`](keychain_txout::KeychainTxOutIndex).
     pub indexer: keychain_txout::ChangeSet,
     /// Changes to locked outpoints.
+    #[serde(default)]
     pub locked_outpoints: locked_outpoints::ChangeSet,
 }
 
