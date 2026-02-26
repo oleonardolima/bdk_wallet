@@ -476,3 +476,33 @@ fn test_apply_block_tx_confirmed_new_block_event() {
         && old_block_time.is_some()
     ));
 }
+
+#[test]
+fn test_apply_unconfirmed_txs_tx_unconfirmed_event() {
+    let (desc, change_desc) = get_test_wpkh_and_change_desc();
+    let (mut wallet, _, update) = new_wallet_and_funding_update(desc, Some(change_desc));
+    let unconfirmed_tx = update.tx_update.txs[1].clone();
+    let events = wallet.apply_unconfirmed_txs_events([(unconfirmed_tx.clone(), 1010)]);
+    assert_eq!(events.len(), 1);
+    assert!(matches!(
+        &events[0],
+        WalletEvent::TxUnconfirmed {tx, old_block_time, ..}
+        if *tx == unconfirmed_tx
+        && old_block_time.is_none()
+    ));
+}
+
+#[test]
+fn test_apply_evicted_txs_tx_dropped_event() {
+    let (desc, change_desc) = get_test_wpkh_and_change_desc();
+    let (mut wallet, _, update) = new_wallet_and_funding_update(desc, Some(change_desc));
+    let unconfirmed_tx = update.tx_update.txs[1].clone();
+    let _events = wallet.apply_unconfirmed_txs_events([(unconfirmed_tx.clone(), 1010)]);
+    let events = wallet.apply_evicted_txs_events([(unconfirmed_tx.compute_txid(), 1010)]);
+    assert_eq!(events.len(), 1);
+    assert!(matches!(
+        &events[0],
+        WalletEvent::TxDropped {txid, tx}
+        if *txid == tx.compute_txid() && *tx == unconfirmed_tx
+    ));
+}
