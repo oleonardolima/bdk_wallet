@@ -137,7 +137,6 @@ pub(crate) struct TxParams {
     pub(crate) change_policy: ChangeSpendPolicy,
     pub(crate) only_witness_utxo: bool,
     pub(crate) add_global_xpubs: bool,
-    pub(crate) include_output_redeem_witness_script: bool,
     pub(crate) bumping_fee: Option<PreviousFee>,
     pub(crate) current_height: Option<absolute::LockTime>,
     pub(crate) allow_dust: bool,
@@ -596,15 +595,6 @@ impl<'a, Cs> TxBuilder<'a, Cs> {
     /// the `non_witness_utxo`.
     pub fn only_witness_utxo(&mut self) -> &mut Self {
         self.params.only_witness_utxo = true;
-        self
-    }
-
-    /// Fill-in the [`psbt::Output::redeem_script`](bitcoin::psbt::Output::redeem_script) and
-    /// [`psbt::Output::witness_script`](bitcoin::psbt::Output::witness_script) fields.
-    ///
-    /// This is useful for signers which always require it, like ColdCard hardware wallets.
-    pub fn include_output_redeem_witness_script(&mut self) -> &mut Self {
-        self.params.include_output_redeem_witness_script = true;
         self
     }
 
