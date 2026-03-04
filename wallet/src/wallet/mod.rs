@@ -19,6 +19,7 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
+use core::fmt::{Debug, Display};
 use core::{cmp::Ordering, fmt, mem, ops::Deref};
 
 use bdk_chain::{
@@ -2448,24 +2449,7 @@ impl Wallet {
         &mut self,
         update: impl Into<Update>,
     ) -> Result<Vec<WalletEvent>, CannotConnectError> {
-        // snapshot of chain tip and transactions before update
-        let chain_tip1 = self.chain.tip().block_id();
-        let wallet_txs1 = self.map_transactions();
-
-        // apply update
-        self.apply_update(update)?;
-
-        // chain tip and transactions after update
-        let chain_tip2 = self.chain.tip().block_id();
-        let wallet_txs2 = self.map_transactions();
-
-        Ok(wallet_events(
-            self,
-            chain_tip1,
-            chain_tip2,
-            wallet_txs1,
-            wallet_txs2,
-        ))
+        self.events_helper(|wallet| wallet.apply_update(update))
     }
 
     /// Get a reference of the staged [`ChangeSet`] that is yet to be committed (if any).
@@ -2549,23 +2533,7 @@ impl Wallet {
         block: &Block,
         height: u32,
     ) -> Result<Vec<WalletEvent>, CannotConnectError> {
-        // snapshot of chain tip and transactions before update
-        let chain_tip1 = self.chain.tip().block_id();
-        let wallet_txs1 = self.map_transactions();
-
-        self.apply_block(block, height)?;
-
-        // chain tip and transactions after update
-        let chain_tip2 = self.chain.tip().block_id();
-        let wallet_txs2 = self.map_transactions();
-
-        Ok(wallet_events(
-            self,
-            chain_tip1,
-            chain_tip2,
-            wallet_txs1,
-            wallet_txs2,
-        ))
+        self.events_helper(|wallet| wallet.apply_block(block, height))
     }
 
     /// Applies relevant transactions from `block` of `height` to the wallet, and connects the
@@ -2614,23 +2582,7 @@ impl Wallet {
         height: u32,
         connected_to: BlockId,
     ) -> Result<Vec<WalletEvent>, ApplyHeaderError> {
-        // snapshot of chain tip and transactions before update
-        let chain_tip1 = self.chain.tip().block_id();
-        let wallet_txs1 = self.map_transactions();
-
-        self.apply_block_connected_to(block, height, connected_to)?;
-
-        // chain tip and transactions after update
-        let chain_tip2 = self.chain.tip().block_id();
-        let wallet_txs2 = self.map_transactions();
-
-        Ok(wallet_events(
-            self,
-            chain_tip1,
-            chain_tip2,
-            wallet_txs1,
-            wallet_txs2,
-        ))
+        self.events_helper(|wallet| wallet.apply_block_connected_to(block, height, connected_to))
     }
 
     /// Apply relevant unconfirmed transactions to the wallet.
@@ -2667,17 +2619,11 @@ impl Wallet {
         &mut self,
         unconfirmed_txs: impl IntoIterator<Item = (T, u64)>,
     ) -> Vec<WalletEvent> {
-        // snapshot of chain tip and transactions before update
-        let chain_tip1 = self.chain.tip().block_id();
-        let wallet_txs1 = self.map_transactions();
-
-        self.apply_unconfirmed_txs(unconfirmed_txs);
-
-        // chain tip and transactions after update
-        let chain_tip2 = self.chain.tip().block_id();
-        let wallet_txs2 = self.map_transactions();
-
-        wallet_events(self, chain_tip1, chain_tip2, wallet_txs1, wallet_txs2)
+        self.events_helper::<_, _, core::convert::Infallible>(|wallet| {
+            wallet.apply_unconfirmed_txs(unconfirmed_txs);
+            Ok(())
+        })
+        .expect("`apply_unconfirmed_txs` should not fail")
     }
 
     /// Apply evictions of the given transaction IDs with their associated timestamps.
@@ -2753,17 +2699,73 @@ impl Wallet {
         &mut self,
         evicted_txs: impl IntoIterator<Item = (Txid, u64)>,
     ) -> Vec<WalletEvent> {
-        // snapshot of chain tip and transactions before update
+        self.events_helper::<_, _, core::convert::Infallible>(|wallet| {
+            wallet.apply_evicted_txs(evicted_txs);
+            Ok(())
+        })
+        .expect("`apply_evicted_txs` should not fail")
+    }
+
+    /// Generates wallet events by executing a wallet-mutating function and surfacing internal
+    /// state changes.
+    ///
+    /// It works by taking some wallet operation that modifies state, capturing "before" and "after"
+    /// snapshots of the wallet's chain tip and transactions and comparing them in order to
+    /// generate a list of [`WalletEvent`]s representing what changed.
+    ///
+    /// Common kinds of events include:
+    ///
+    /// - [`WalletEvent::ChainTipChanged`]: The blockchain tip changed
+    /// - [`WalletEvent::TxConfirmed`]: A transaction was confirmed in a block
+    /// - [`WalletEvent::TxUnconfirmed`]: A transaction was newly unconfirmed
+    /// - [`WalletEvent::TxReplaced`]: An unconfirmed transaction was replaced (e.g., via RBF)
+    /// - [`WalletEvent::TxDropped`]: An unconfirmed transaction was dropped from the mempool
+    ///
+    /// This is useful when you need to track specific changes to your wallet state, such
+    /// as updating a UI to reflect transaction status changes, triggering notifications when
+    /// transactions confirm, logging state changes for debugging or auditing, or responding to
+    /// chain reorganizations.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use bdk_chain::local_chain::CannotConnectError;
+    /// # use bdk_wallet::{Wallet, Update, WalletEvent};
+    /// # let mut wallet: Wallet = todo!();
+    /// // Apply an update and get events describing what changed
+    /// let update = Update::default();
+    /// let func = |wallet: &mut Wallet| wallet.apply_update(update);
+    /// let events = wallet.events_helper(func)?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// If `f` returns an error, then returns `E` of a type defined by the function
+    /// passed in.
+    pub fn events_helper<F, T, E>(&mut self, f: F) -> Result<Vec<WalletEvent>, E>
+    where
+        F: FnOnce(&mut Self) -> Result<T, E>,
+        E: Debug + Display,
+    {
+        // Snapshot of chain tip and transactions before
         let chain_tip1 = self.chain.tip().block_id();
         let wallet_txs1 = self.map_transactions();
 
-        self.apply_evicted_txs(evicted_txs);
+        // Call `f` on self
+        f(self)?;
 
-        // chain tip and transactions after update
+        // Chain tip and transactions after
         let chain_tip2 = self.chain.tip().block_id();
         let wallet_txs2 = self.map_transactions();
 
-        wallet_events(self, chain_tip1, chain_tip2, wallet_txs1, wallet_txs2)
+        Ok(wallet_events(
+            self,
+            chain_tip1,
+            chain_tip2,
+            wallet_txs1,
+            wallet_txs2,
+        ))
     }
 
     /// Used internally to ensure that all methods requiring a [`KeychainKind`] will use a
@@ -2778,7 +2780,9 @@ impl Wallet {
         }
     }
 
-    /// Internal helper function to return Wallet transactions as a BTreeMap for event comparison.
+    /// Returns a map of canonical transactions keyed by txid.
+    ///
+    /// This is used internally to help generate [`WalletEvent`]s.
     fn map_transactions(
         &self,
     ) -> BTreeMap<Txid, (Arc<Transaction>, ChainPosition<ConfirmationBlockTime>)> {

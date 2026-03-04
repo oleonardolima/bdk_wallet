@@ -11,6 +11,17 @@ use std::sync::Arc;
 
 /// apply_update_events tests.
 #[test]
+fn test_empty_update_should_return_no_events() {
+    let (mut wallet, _) = bdk_wallet::test_utils::get_funded_wallet_wpkh();
+    assert!(
+        wallet
+            .apply_update_events(Update::default())
+            .is_ok_and(|vec| vec.is_empty()),
+        "Empty update should return no events"
+    );
+}
+
+#[test]
 fn test_new_confirmed_tx_event() {
     let (desc, change_desc) = get_test_wpkh_and_change_desc();
     let (mut wallet, _, update) = new_wallet_and_funding_update(desc, Some(change_desc));
@@ -19,7 +30,7 @@ fn test_new_confirmed_tx_event() {
         height: 0,
         hash: wallet.local_chain().genesis_hash(),
     };
-    let events = wallet.apply_update_events(update).unwrap();
+    let events = wallet.apply_update_events(update.clone()).unwrap();
     let new_tip1 = wallet.local_chain().tip().block_id();
     assert_eq!(events.len(), 3);
     assert!(
@@ -31,6 +42,11 @@ fn test_new_confirmed_tx_event() {
     assert!(matches!(&events[1], WalletEvent::TxConfirmed {tx, ..} if tx.output.len() == 1));
     assert!(
         matches!(&events[2], WalletEvent::TxConfirmed {tx, block_time, ..} if block_time.block_id.height == 2000 && tx.output.len() == 2)
+    );
+    // Repeatedly applying an update should have no effect
+    assert!(
+        wallet.apply_update_events(update).unwrap().is_empty(),
+        "Applying repeat Update should return no events"
     );
 }
 
