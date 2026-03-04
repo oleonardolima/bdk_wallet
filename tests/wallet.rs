@@ -1454,24 +1454,32 @@ fn test_sign_single_xprv_no_hd_keypaths() {
 }
 
 #[test]
-fn test_include_output_redeem_witness_script() {
-    let desc = get_test_wpkh();
+fn test_output_redeem_witness_script_populated_automatically() {
     let change_desc = "sh(wsh(multi(1,cVpPVruEDdmutPzisEsYvtST1usBR3ntr8pXSyt6D2YYqXRyPcFW,cRjo6jqfVNP33HhSS76UhXETZsGTZYx8FMFvR9kpbtCSV1PmdZdu)))";
-    let (mut wallet, _) = get_funded_wallet(desc, change_desc);
+
+    let (mut wallet, _) = get_funded_wallet(get_test_wpkh(), change_desc);
     let addr = Address::from_str("2N1Ffz3WaNzbeLFBb51xyFMHYSEUXcbiSoX")
         .unwrap()
         .assume_checked();
+
     let mut builder = wallet.build_tx();
-    builder
-        .add_recipient(addr.script_pubkey(), Amount::from_sat(45_000))
-        .include_output_redeem_witness_script();
+    builder.add_recipient(addr.script_pubkey(), Amount::from_sat(45_000));
     let psbt = builder.finish().unwrap();
 
-    // p2sh-p2wsh transaction should contain both witness and redeem scripts
-    assert!(psbt
+    let change_output = psbt
         .outputs
         .iter()
-        .any(|output| output.redeem_script.is_some() && output.witness_script.is_some()));
+        .find(|o| o.redeem_script.is_some() && o.witness_script.is_some())
+        .expect("change output should have scripts populated automatically by update_output_with_descriptor");
+
+    let witness_script = change_output.witness_script.as_ref().unwrap();
+    let expected_redeem = ScriptBuf::new_p2wsh(&witness_script.wscript_hash());
+
+    assert_eq!(
+        change_output.redeem_script.as_ref().unwrap(),
+        &expected_redeem,
+        "redeem_script should be the P2WSH hash of the witness_script"
+    );
 }
 
 #[test]
@@ -1481,9 +1489,7 @@ fn test_signing_only_one_of_multiple_inputs() {
         .unwrap()
         .assume_checked();
     let mut builder = wallet.build_tx();
-    builder
-        .add_recipient(addr.script_pubkey(), Amount::from_sat(45_000))
-        .include_output_redeem_witness_script();
+    builder.add_recipient(addr.script_pubkey(), Amount::from_sat(45_000));
     let mut psbt = builder.finish().unwrap();
 
     // add another input to the psbt that is at least passable.
