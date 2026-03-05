@@ -19,7 +19,6 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use core::fmt::{Debug, Display};
 use core::{cmp::Ordering, fmt, mem, ops::Deref};
 
 use bdk_chain::{
@@ -2730,7 +2729,7 @@ impl Wallet {
     ///
     /// ```rust,no_run
     /// # use bdk_chain::local_chain::CannotConnectError;
-    /// # use bdk_wallet::{Wallet, Update, WalletEvent};
+    /// # use bdk_wallet::{Wallet, Update, event::WalletEvent};
     /// # let mut wallet: Wallet = todo!();
     /// // Apply an update and get events describing what changed
     /// let update = Update::default();
@@ -2746,7 +2745,7 @@ impl Wallet {
     pub fn events_helper<F, T, E>(&mut self, f: F) -> Result<Vec<WalletEvent>, E>
     where
         F: FnOnce(&mut Self) -> Result<T, E>,
-        E: Debug + Display,
+        E: fmt::Debug + fmt::Display,
     {
         // Snapshot of chain tip and transactions before
         let chain_tip1 = self.chain.tip().block_id();

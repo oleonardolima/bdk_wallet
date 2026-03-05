@@ -16,7 +16,7 @@ fn test_empty_update_should_return_no_events() {
     assert!(
         wallet
             .apply_update_events(Update::default())
-            .is_ok_and(|vec| vec.is_empty()),
+            .map_or(false, |vec| vec.is_empty()),
         "Empty update should return no events"
     );
 }
