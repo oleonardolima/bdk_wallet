@@ -82,8 +82,8 @@ pub enum WalletEvent {
     },
 }
 
-/// Generate events by comparing the chain tip and wallet transactions before and after applying
-/// `wallet::Update` to `Wallet`. Any changes are added to the list of returned `WalletEvent`s.
+/// Generate `WalletEvent`s by comparing the chain tip and wallet transactions before and after
+/// updating the state of the `Wallet`.
 pub(crate) fn wallet_events(
     wallet: &Wallet,
     chain_tip1: BlockId,
