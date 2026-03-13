@@ -125,3 +125,9 @@ impl From<crate::descriptor::policy::PolicyError> for Error {
         Error::Policy(err)
     }
 }
+
+impl From<miniscript::RelLockTimeError> for Error {
+    fn from(err: miniscript::RelLockTimeError) -> Self {
+        Error::Miniscript(miniscript::Error::RelativeLockTime(err))
+    }
+}

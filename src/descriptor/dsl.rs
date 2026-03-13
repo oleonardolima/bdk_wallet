@@ -724,7 +724,9 @@ macro_rules! fragment {
         $crate::impl_leaf_opcode_value!(After, $crate::miniscript::AbsLockTime::from_consensus($value).expect("valid `AbsLockTime`"))
     });
     ( older ( $value:expr ) ) => ({
-        $crate::impl_leaf_opcode_value!(Older, $crate::miniscript::RelLockTime::from_consensus($value).expect("valid `RelLockTime`")) // TODO!!
+        $crate::miniscript::RelLockTime::from_consensus($value)
+            .map_err($crate::descriptor::error::Error::from)
+            .and_then(|rel_lock_time| $crate::impl_leaf_opcode_value!(Older, rel_lock_time))
     });
     ( sha256 ( $hash:expr ) ) => ({
         $crate::impl_leaf_opcode_value!(Sha256, $hash)
