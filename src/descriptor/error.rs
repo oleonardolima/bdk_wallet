@@ -131,3 +131,9 @@ impl From<miniscript::RelLockTimeError> for Error {
         Error::Miniscript(miniscript::Error::RelativeLockTime(err))
     }
 }
+
+impl From<miniscript::AbsLockTimeError> for Error {
+    fn from(err: miniscript::AbsLockTimeError) -> Self {
+        Error::Miniscript(miniscript::Error::AbsoluteLockTime(err))
+    }
+}

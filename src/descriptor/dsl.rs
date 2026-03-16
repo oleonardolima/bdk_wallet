@@ -721,7 +721,9 @@ macro_rules! fragment {
         $crate::keys::make_pkh($key, &secp)
     });
     ( after ( $value:expr ) ) => ({
-        $crate::impl_leaf_opcode_value!(After, $crate::miniscript::AbsLockTime::from_consensus($value).expect("valid `AbsLockTime`"))
+        $crate::miniscript::AbsLockTime::from_consensus($value)
+            .map_err($crate::descriptor::error::Error::from)
+            .and_then(|abs_lock_time| $crate::impl_leaf_opcode_value!(After, abs_lock_time))
     });
     ( older ( $value:expr ) ) => ({
         $crate::miniscript::RelLockTime::from_consensus($value)
