@@ -56,6 +56,7 @@ pub mod error;
 mod event;
 pub mod export;
 pub mod locked_outpoints;
+#[cfg(feature = "rusqlite")]
 pub mod migration;
 mod params;
 mod persisted;
