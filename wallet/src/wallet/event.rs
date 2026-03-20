@@ -82,8 +82,10 @@ pub enum WalletEvent {
     },
 }
 
+/// Generate `WalletEvent`s by comparing the chain tip and wallet transactions before and after
+/// updating the state of the `Wallet`.
 pub(crate) fn wallet_events(
-    wallet: &mut Wallet,
+    wallet: &Wallet,
     chain_tip1: BlockId,
     chain_tip2: BlockId,
     wallet_txs1: BTreeMap<Txid, (Arc<Transaction>, ChainPosition<ConfirmationBlockTime>)>,
@@ -91,6 +93,7 @@ pub(crate) fn wallet_events(
 ) -> Vec<WalletEvent> {
     let mut events: Vec<WalletEvent> = Vec::new();
 
+    // find chain tip change
     if chain_tip1 != chain_tip2 {
         events.push(WalletEvent::ChainTipChanged {
             old_tip: chain_tip1,
@@ -98,10 +101,11 @@ pub(crate) fn wallet_events(
         });
     }
 
-    wallet_txs2.iter().for_each(|(txid2, (tx2, cp2))| {
-        if let Some((tx1, cp1)) = wallet_txs1.get(txid2) {
-            assert_eq!(tx1.compute_txid(), *txid2);
-            match (cp1, cp2) {
+    // find transaction canonical status changes
+    wallet_txs2.iter().for_each(|(txid2, (tx2, pos2))| {
+        if let Some((tx1, pos1)) = wallet_txs1.get(txid2) {
+            debug_assert_eq!(tx1.compute_txid(), *txid2);
+            match (pos1, pos2) {
                 (Unconfirmed { .. }, Confirmed { anchor, .. }) => {
                     events.push(WalletEvent::TxConfirmed {
                         txid: *txid2,
@@ -139,7 +143,7 @@ pub(crate) fn wallet_events(
                 }
             }
         } else {
-            match cp2 {
+            match pos2 {
                 Confirmed { anchor, .. } => {
                     events.push(WalletEvent::TxConfirmed {
                         txid: *txid2,
