@@ -5,6 +5,7 @@
 ///
 /// This file shows the problem and how to catch it.
 use bdk_wallet::descriptor;
+use miniscript::AbsLockTime;
 
 #[test]
 fn test_older_with_invalid_rellocktime_too_large() {
@@ -114,6 +115,110 @@ fn test_rel_lock_time_error() {
     assert!(
         display_string.contains("relative locktime"),
         "Display string was: '{}'",
+        display_string
+    );
+}
+
+#[test]
+fn test_after_with_invalid_abslocktime_zero() {
+    let invalid_value = 0;
+
+    let result = descriptor!(wsh(after(invalid_value)));
+
+    assert!(
+        result.is_err(),
+        "AbsLockTime of 0 should return an error in this context"
+    );
+
+    // Check for the correct error variant
+    if let Err(descriptor::DescriptorError::Miniscript(miniscript::Error::AbsoluteLockTime(_))) =
+        result
+    {
+        // Success: Error was caught and mapped correctly
+    } else {
+        panic!("Expected AbsLockTime error, got {:?}", result);
+    }
+}
+
+#[test]
+fn test_after_with_valid_height() {
+    // Values < 500,000,000 are interpreted as block heights
+    let block_height = 840_000; // Example: Halving block height
+    let result = descriptor!(wsh(after(block_height)));
+    assert!(result.is_ok(), "Valid block height should work");
+}
+
+#[test]
+fn test_after_with_valid_timestamp() {
+    // Values >= 500,000,000 are interpreted as Unix timestamps
+    let timestamp = 1715817600; // Example: A date in 2024
+    let result = descriptor!(wsh(after(timestamp)));
+    assert!(result.is_ok(), "Valid Unix timestamp should work");
+}
+
+#[test]
+fn test_after_with_exact_max_valid_timestamp() {
+    // 2,147,483,648 is the absolute maximum value supported
+    // by this implementation of AbsLockTime.
+    let max_valid = 2_147_483_648;
+    let result = descriptor!(wsh(after(max_valid)));
+    assert!(
+        result.is_ok(),
+        "Value 2,147,483,648 should be the valid upper bound"
+    );
+}
+
+#[test]
+fn test_after_with_invalid_just_above_max() {
+    // 2,147,483,649 is too large for the internal representation
+    let too_large = 2_147_483_649;
+    let result = descriptor!(wsh(after(too_large)));
+
+    assert!(
+        matches!(
+            result,
+            Err(descriptor::DescriptorError::Miniscript(
+                miniscript::Error::AbsoluteLockTime(_)
+            ))
+        ),
+        "Should fail specifically with a Miniscript AbsoluteLockTime error"
+    );
+}
+
+#[test]
+fn test_after_with_u32_max_is_invalid() {
+    // Verify that u32::MAX actually triggers the error you're looking for.
+    let max_value = u32::MAX;
+    let result = descriptor!(wsh(after(max_value)));
+
+    assert!(
+        result.is_err(),
+        "u32::MAX is often rejected as an invalid consensus locktime"
+    );
+}
+
+#[test]
+fn test_abs_lock_time_error_mapping() {
+    let invalid_value = 0;
+    let abs_lock_result = AbsLockTime::from_consensus(invalid_value);
+
+    assert!(abs_lock_result.is_err());
+    let abs_err = abs_lock_result.unwrap_err();
+
+    // Wrap in the general Miniscript Error enum
+    let minisc_err = miniscript::Error::AbsoluteLockTime(abs_err);
+
+    // Convert to your local Error type using .into()
+    let error: descriptor::DescriptorError = minisc_err.into();
+
+    // Assert it landed in the Miniscript variant
+    assert!(matches!(error, descriptor::DescriptorError::Miniscript(_)));
+
+    // Verify the error message contains the expected text
+    let display_string = format!("{}", error);
+    assert!(
+        display_string.contains("absolute locktime"),
+        "Error message '{}' should mention locktime",
         display_string
     );
 }
