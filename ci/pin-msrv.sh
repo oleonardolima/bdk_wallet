@@ -10,6 +10,7 @@ set -euo pipefail
 # cargo clean
 # rustup override set 1.63.0
 
+cargo update -p clap --precise "4.5.17"
 cargo update -p once_cell --precise "1.20.3"
 cargo update -p syn --precise "2.0.106"
 cargo update -p quote --precise "1.0.41"
