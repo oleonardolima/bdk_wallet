@@ -13,20 +13,18 @@
 //! This module provides helper functions and types to assist users in migrating wallet data
 //! when upgrading between major versions of the `bdk_wallet` crate.
 
-#[cfg(feature = "rusqlite")]
 use crate::rusqlite::{self, Connection};
-#[cfg(feature = "rusqlite")]
 use crate::KeychainKind::{self, External, Internal};
-#[cfg(feature = "rusqlite")]
-use alloc::{string::FromUtf8Error, string::String, string::ToString, vec::Vec};
-#[cfg(feature = "rusqlite")]
+use alloc::{
+    string::{FromUtf8Error, String, ToString},
+    vec::Vec,
+};
 use core::fmt;
 
 // pre-1.0 sqlite database migration helper functions
 
 /// `Pre1WalletKeychain` represents a structure that holds the keychain details
 /// and metadata required for managing a wallet's keys.
-#[cfg(feature = "rusqlite")]
 #[derive(Debug)]
 pub struct Pre1WalletKeychain {
     /// The name of the wallet keychains, "External" or "Internal".
@@ -39,7 +37,6 @@ pub struct Pre1WalletKeychain {
 }
 
 /// Errors thrown when migrating from a pre1.0 BDK database.
-#[cfg(feature = "rusqlite")]
 #[derive(Debug)]
 pub enum Pre1MigrationError {
     /// A SQLite error
@@ -50,7 +47,6 @@ pub enum Pre1MigrationError {
     InvalidChecksum(FromUtf8Error),
 }
 
-#[cfg(feature = "rusqlite")]
 impl fmt::Display for Pre1MigrationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -61,10 +57,8 @@ impl fmt::Display for Pre1MigrationError {
     }
 }
 
-#[cfg(feature = "rusqlite")]
 impl std::error::Error for Pre1MigrationError {}
 
-#[cfg(feature = "rusqlite")]
 impl From<rusqlite::Error> for Pre1MigrationError {
     fn from(e: rusqlite::Error) -> Self {
         Pre1MigrationError::RusqliteError(e)
@@ -76,7 +70,6 @@ impl From<rusqlite::Error> for Pre1MigrationError {
 /// This function uses a connection to a pre-1.0 bdk wallet SQLite database to execute a query that
 /// retrieves data from two tables (`last_derivation_indices` and `checksums`) and maps the
 /// resulting rows to a list of `Pre1WalletKeychain` objects.
-#[cfg(feature = "rusqlite")]
 pub fn get_pre_1_wallet_keychains(
     conn: &mut Connection,
 ) -> Result<Vec<Pre1WalletKeychain>, Pre1MigrationError> {
@@ -113,24 +106,20 @@ pub fn get_pre_1_wallet_keychains(
 
 #[cfg(test)]
 mod test {
-    #[cfg(feature = "rusqlite")]
     use crate::rusqlite::{self, Connection};
     use crate::KeychainKind::{External, Internal};
 
-    #[cfg(feature = "rusqlite")]
     const SCHEMA_SQL: &str = "CREATE TABLE last_derivation_indices (keychain TEXT, value INTEGER);
                               CREATE UNIQUE INDEX idx_indices_keychain ON last_derivation_indices(keychain);
                               CREATE TABLE checksums (keychain TEXT, checksum BLOB);
                               CREATE INDEX idx_checksums_keychain ON checksums(keychain);";
 
-    #[cfg(feature = "rusqlite")]
     fn setup_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(SCHEMA_SQL).unwrap();
         conn
     }
 
-    #[cfg(feature = "rusqlite")]
     fn insert_keychain(
         conn: &Connection,
         keychain: &str,
@@ -148,7 +137,6 @@ mod test {
         Ok(())
     }
 
-    #[cfg(feature = "rusqlite")]
     #[test]
     fn test_get_pre_1_wallet_keychains() -> anyhow::Result<()> {
         let mut conn = setup_db();
@@ -188,7 +176,6 @@ mod test {
         Ok(())
     }
 
-    #[cfg(feature = "rusqlite")]
     #[test]
     fn test_invalid_keychain_name() {
         let mut conn = setup_db();
@@ -204,7 +191,6 @@ mod test {
         );
     }
 
-    #[cfg(feature = "rusqlite")]
     #[test]
     fn test_invalid_checksum_utf8() {
         let mut conn = setup_db();
@@ -220,7 +206,6 @@ mod test {
         );
     }
 
-    #[cfg(feature = "rusqlite")]
     #[test]
     fn test_empty_database() -> anyhow::Result<()> {
         let mut conn = setup_db();
@@ -229,7 +214,6 @@ mod test {
         Ok(())
     }
 
-    #[cfg(feature = "rusqlite")]
     #[test]
     fn test_missing_table() {
         let mut conn = Connection::open_in_memory().unwrap();
