@@ -21,12 +21,10 @@ use alloc::{
 };
 use core::fmt;
 
-// pre-1.0 sqlite database migration helper functions
-
-/// `Pre1WalletKeychain` represents a structure that holds the keychain details
+/// [`PreV1WalletKeychain`] represents a structure that holds the keychain details
 /// and metadata required for managing a wallet's keys.
 #[derive(Debug)]
-pub struct Pre1WalletKeychain {
+pub struct PreV1WalletKeychain {
     /// The name of the wallet keychains, "External" or "Internal".
     pub keychain: KeychainKind,
     /// The index of the last derived key in the wallet keychain.
@@ -36,9 +34,9 @@ pub struct Pre1WalletKeychain {
     pub checksum: String,
 }
 
-/// Errors thrown when migrating from a pre1.0 BDK database.
+/// Errors thrown when migrating from a pre-v1.0.0 BDK database.
 #[derive(Debug)]
-pub enum Pre1MigrationError {
+pub enum PreV1MigrationError {
     /// A SQLite error
     RusqliteError(rusqlite::Error),
     /// The keychain name is invalid, it must be "External" or "Internal"
@@ -47,32 +45,32 @@ pub enum Pre1MigrationError {
     InvalidChecksum(FromUtf8Error),
 }
 
-impl fmt::Display for Pre1MigrationError {
+impl fmt::Display for PreV1MigrationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pre1MigrationError::RusqliteError(e) => write!(f, "Rusqlite error: {}", e),
-            Pre1MigrationError::InvalidKeychain(e) => write!(f, "Invalid keychain path: {}", e),
-            Pre1MigrationError::InvalidChecksum(e) => write!(f, "Invalid checksum: {}", e),
+            PreV1MigrationError::RusqliteError(e) => write!(f, "Rusqlite error: {}", e),
+            PreV1MigrationError::InvalidKeychain(e) => write!(f, "Invalid keychain path: {}", e),
+            PreV1MigrationError::InvalidChecksum(e) => write!(f, "Invalid checksum: {}", e),
         }
     }
 }
 
-impl std::error::Error for Pre1MigrationError {}
+impl std::error::Error for PreV1MigrationError {}
 
-impl From<rusqlite::Error> for Pre1MigrationError {
+impl From<rusqlite::Error> for PreV1MigrationError {
     fn from(e: rusqlite::Error) -> Self {
-        Pre1MigrationError::RusqliteError(e)
+        PreV1MigrationError::RusqliteError(e)
     }
 }
 
-/// Retrieves a list of [`Pre1WalletKeychain`] objects from a pre-1.0 bdk SQLite database.
+/// Retrieves a list of [`PreV1WalletKeychain`] objects from a pre-v1.0.0 bdk SQLite database.
 ///
 /// This function uses a connection to a pre-1.0 bdk wallet SQLite database to execute a query that
 /// retrieves data from two tables (`last_derivation_indices` and `checksums`) and maps the
-/// resulting rows to a list of `Pre1WalletKeychain` objects.
-pub fn get_pre_1_wallet_keychains(
+/// resulting rows to a list of [`PreV1WalletKeychain`] objects.
+pub fn get_pre_v1_wallet_keychains(
     conn: &mut Connection,
-) -> Result<Vec<Pre1WalletKeychain>, Pre1MigrationError> {
+) -> Result<Vec<PreV1WalletKeychain>, PreV1MigrationError> {
     let db_tx = conn.transaction()?;
     let mut statement = db_tx
         .prepare(
@@ -92,10 +90,10 @@ pub fn get_pre_1_wallet_keychains(
         let keychain = match keychain.as_str() {
             "External" => Ok(External),
             "Internal" => Ok(Internal),
-            name => Err(Pre1MigrationError::InvalidKeychain(name.to_string())),
+            name => Err(PreV1MigrationError::InvalidKeychain(name.to_string())),
         }?;
-        let checksum = String::from_utf8(checksum).map_err(Pre1MigrationError::InvalidChecksum)?;
-        keychains.push(Pre1WalletKeychain {
+        let checksum = String::from_utf8(checksum).map_err(PreV1MigrationError::InvalidChecksum)?;
+        keychains.push(PreV1WalletKeychain {
             keychain,
             last_derivation_index: value,
             checksum,
@@ -147,7 +145,7 @@ mod test {
         insert_keychain(&conn, "\"Internal\"", 21, internal_checksum.as_bytes())?;
 
         // test with a 2 keychain wallet
-        let result = super::get_pre_1_wallet_keychains(&mut conn)?;
+        let result = super::get_pre_v1_wallet_keychains(&mut conn)?;
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].keychain, External);
         assert_eq!(result[0].last_derivation_index, 42);
@@ -167,7 +165,7 @@ mod test {
             )?;
         }
         // test with a 1 keychain wallet
-        let result = super::get_pre_1_wallet_keychains(&mut conn)?;
+        let result = super::get_pre_v1_wallet_keychains(&mut conn)?;
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].keychain, External);
         assert_eq!(result[0].last_derivation_index, 42);
@@ -181,11 +179,11 @@ mod test {
         let mut conn = setup_db();
         insert_keychain(&conn, "\"InvalidKeychain\"", 42, b"72k0lrja").unwrap();
 
-        let result = super::get_pre_1_wallet_keychains(&mut conn);
+        let result = super::get_pre_v1_wallet_keychains(&mut conn);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
-            matches!(err, super::Pre1MigrationError::InvalidKeychain(ref name) if name == "InvalidKeychain"),
+            matches!(err, super::PreV1MigrationError::InvalidKeychain(ref name) if name == "InvalidKeychain"),
             "Expected InvalidKeychain error with name 'InvalidKeychain', got: {:?}",
             err
         );
@@ -196,11 +194,11 @@ mod test {
         let mut conn = setup_db();
         insert_keychain(&conn, "\"External\"", 42, &[0xFF, 0xFE, 0xFD]).unwrap();
 
-        let result = super::get_pre_1_wallet_keychains(&mut conn);
+        let result = super::get_pre_v1_wallet_keychains(&mut conn);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
-            matches!(err, super::Pre1MigrationError::InvalidChecksum(_)),
+            matches!(err, super::PreV1MigrationError::InvalidChecksum(_)),
             "Expected InvalidChecksum error, got: {:?}",
             err
         );
@@ -209,7 +207,7 @@ mod test {
     #[test]
     fn test_empty_database() -> anyhow::Result<()> {
         let mut conn = setup_db();
-        let result = super::get_pre_1_wallet_keychains(&mut conn)?;
+        let result = super::get_pre_v1_wallet_keychains(&mut conn)?;
         assert_eq!(result.len(), 0);
         Ok(())
     }
@@ -217,11 +215,11 @@ mod test {
     #[test]
     fn test_missing_table() {
         let mut conn = Connection::open_in_memory().unwrap();
-        let result = super::get_pre_1_wallet_keychains(&mut conn);
+        let result = super::get_pre_v1_wallet_keychains(&mut conn);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
-            matches!(err, super::Pre1MigrationError::RusqliteError(_)),
+            matches!(err, super::PreV1MigrationError::RusqliteError(_)),
             "Expected RusqliteError, got: {:?}",
             err
         );
