@@ -17,13 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat!: Persist utxo lock status [#259](https://github.com/bitcoindevkit/bdk_wallet/pull/259)
 - Return wallet events when applying updates and blocks (3.0 milestone) [#319](https://github.com/bitcoindevkit/bdk_wallet/pull/319)
 - feature: Add Caravan wallet format import/export support [#205](https://github.com/bitcoindevkit/bdk_wallet/pull/205)
-- Add get_pre_1_wallet_keychains migration helper [#364](https://github.com/bitcoindevkit/bdk_wallet/pull/364)
+- Add get_pre_v1_wallet_keychains to assist migration from pre-1.0 bdk wallets [#364](https://github.com/bitcoindevkit/bdk_wallet/pull/364) [#411](https://github.com/bitcoindevkit/bdk_wallet/pull/411)
 - Update README with new codecov badge [#341](https://github.com/bitcoindevkit/bdk_wallet/pull/341)
 - feat: Add apply_unconfirmed_txs_events and apply_evicted_txs_events [#388](https://github.com/bitcoindevkit/bdk_wallet/pull/388)
 
 ### Fixed
 
 - fix(wallet): Don't fail in build_fee_bump for missing parent txid [#337](https://github.com/bitcoindevkit/bdk_wallet/pull/337)
+- fix(dsl): handle invalid `RelLockTime` without panicking [#404](https://github.com/bitcoindevkit/bdk_wallet/pull/404)
+- fix(dsl): handle invalid `AbsLockTime` without panicking [#409](https://github.com/bitcoindevkit/bdk_wallet/pull/409)
 
 ### Changed
 
