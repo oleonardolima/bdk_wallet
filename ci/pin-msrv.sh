@@ -9,3 +9,7 @@ set -euo pipefail
 
 # cargo clean
 # rustup default 1.85.0
+
+cargo update -p icu_normalizer --precise "2.1.1"
+cargo update -p icu_provider --precise "2.1.1"
+cargo update -p icu_locale_core --precise "2.1.1"
