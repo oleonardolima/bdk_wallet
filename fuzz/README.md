@@ -31,20 +31,26 @@ The fuzzer generates structured inputs using the `Arbitrary` trait:
 
 ## How do I run the fuzz tests locally?
 
+First off, libFuzzer requires nightly version of Rust.
+
+```bash
+rustup install nightly
+```
+
 Install cargo-fuzz:
 ```bash
-cargo install cargo-fuzz
+cargo +nightly install cargo-fuzz
 ```
 
 Run the fuzzer:
 ```bash
 cd fuzz
-cargo fuzz run bdk_wallet
+cargo +nightly fuzz run bdk_wallet
 ```
 
 Run with specific options:
 ```bash
-cargo fuzz run bdk_wallet -- -max_len=10000 -timeout=10
+cargo +nightly fuzz run bdk_wallet -- -max_len=10000 -timeout=10
 ```
 
 ## How do I add a new fuzz test target?
@@ -69,13 +75,29 @@ fuzz_target!(|input: YourFuzzInput| {
 When the fuzzer finds a crash, it saves the input to `fuzz/artifacts/`. To reproduce:
 
 ```bash
-cargo fuzz run bdk_wallet fuzz/artifacts/bdk_wallet/crash-<hash>
+cargo +nightly fuzz run bdk_wallet fuzz/artifacts/bdk_wallet/crash-<hash>
 ```
 
 You can also minimize the crash input:
 ```bash
-cargo fuzz tmin bdk_wallet fuzz/artifacts/bdk_wallet/crash-<hash>
+cargo +nightly fuzz tmin bdk_wallet fuzz/artifacts/bdk_wallet/crash-<hash>
 ```
+
+# How do I generate coverage report?
+
+In order to generate coverage report you need to install the rustup components for the nightly toolchain instead of the default:
+
+```bash
+rustup component add --toolchain nightly llvm-tools-preview
+```
+
+After that run:
+```bash
+cargo +nightly fuzz coverage <target_name>
+```
+
+The resulting coverage data will be located at fuzz/coverage/<target_name>/coverage.profdata.
+
 
 ## Structure-Aware Fuzzing Benefits
 
