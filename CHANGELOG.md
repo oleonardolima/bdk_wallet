@@ -56,12 +56,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switch to cargo-llvm-cov for code coverage [#371](https://github.com/bitcoindevkit/bdk_wallet/pull/371)
 - docs: Add section on ChangeSet version compatibility [#391](https://github.com/bitcoindevkit/bdk_wallet/pull/391)
 - Implement `core::error::Error` for several types and un-feature-gate `std::error::Error` [#397](https://github.com/bitcoindevkit/bdk_wallet/pull/397)
-- deps: bump `bdk_chain` to 0.23.2
-- deps: bump `bitcoin` to 0.32.8
-- deps: bump `miniscript` to 12.3.5
-- deps: bump `rand_core` to 0.6.4
-- deps: bump `bip39` to 2.2.2
-- deps: bump `tempfile` to 3.26.0
+- deps: bump `bitcoin` to 0.32.8 [#398](https://github.com/bitcoindevkit/bdk_wallet/pull/398)
+- deps: bump `miniscript` to 12.3.5 [#398](https://github.com/bitcoindevkit/bdk_wallet/pull/398)
+- deps: bump `rand_core` to 0.6.4 [#398](https://github.com/bitcoindevkit/bdk_wallet/pull/398)
+- deps: bump `bip39` to 2.2.2 [#398](https://github.com/bitcoindevkit/bdk_wallet/pull/398)
+- deps: bump `tempfile` to 3.26.0 [#398](https://github.com/bitcoindevkit/bdk_wallet/pull/398)
+- build(deps): bump actions/upload-artifact from 6 to 7 [#389](https://github.com/bitcoindevkit/bdk_wallet/pull/389)
+- build(deps): bump Swatinem/rust-cache from 2.8.2 to 2.9.1 [#406](https://github.com/bitcoindevkit/bdk_wallet/pull/406)
+- chore: Bump Rust compiler version to stable (1.94.0) [#407](https://github.com/bitcoindevkit/bdk_wallet/pull/407)
+- ci: add docs check job [#416](https://github.com/bitcoindevkit/bdk_wallet/pull/416)
+- build(deps): bump codecov/codecov-action from 5.5.2 to 6.0.0 [#424](https://github.com/bitcoindevkit/bdk_wallet/pull/424)
+- deps: bump `bdk_chain` to 0.23.3
+- deps: bump `bdk_bitcoind_rpc` to 0.22.0
+- deps: bump `bdk_file_store` to 0.22.0
 
 ### Removed
 

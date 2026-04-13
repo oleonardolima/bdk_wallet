@@ -301,7 +301,6 @@ impl WalletPersister for bdk_chain::rusqlite::Connection {
 /// Error for [`bdk_file_store`]'s implementation of [`WalletPersister`].
 #[cfg(feature = "file_store")]
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
 pub enum FileStoreError {
     /// Error when loading from the store.
     Load(bdk_file_store::StoreErrorWithDump<ChangeSet>),
