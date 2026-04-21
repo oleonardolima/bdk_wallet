@@ -15,20 +15,24 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4"
+libfuzzer-sys = { version = "0.4", optional = true }
 arbitrary = { version = "1.4", features = ["derive"] }
 bdk_wallet = { path = "../wallet", features = ["rusqlite"] }
+afl = { version = "*", optional = true }
+honggfuzz = { version = "0.5", optional = true }
 
-[[bin]]
-name = "bdk_wallet"
-path = "fuzz_targets/bdk_wallet.rs"
-test = false
-doc = false
-bench = false
+[features]
+libfuzzer_fuzz = ["libfuzzer-sys"]
+honggfuzz_fuzz = ["honggfuzz"]
+afl_fuzz = ["afl"]
 
-[[bin]]
-name = "bdk_wallet_optimized"
-path = "fuzz_targets/bdk_wallet_optimized.rs"
-test = false
-doc = false
-bench = false
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev]
+panic = "abort"
+opt-level = 1

@@ -31,6 +31,8 @@ The fuzzer generates structured inputs using the `Arbitrary` trait:
 
 ## How do I run the fuzz tests locally?
 
+### Running with LibFuzzer
+
 First off, libFuzzer requires nightly version of Rust.
 
 ```bash
@@ -45,20 +47,61 @@ cargo +nightly install cargo-fuzz
 Run the fuzzer:
 ```bash
 cd fuzz
-cargo +nightly fuzz run bdk_wallet
+cargo +nightly fuzz run bdk_wallet_target
 ```
 
 Run with specific options:
 ```bash
-cargo +nightly fuzz run bdk_wallet -- -max_len=10000 -timeout=10
+cargo +nightly fuzz run bdk_wallet_target  --features "libfuzzer_fuzz" -- -max_len=10000 -timeout=10
 ```
 
+### Running with AFL 
+
+Install the afl toolchain: 
+
+```bash
+cargo install cargo-afl
+```
+Build the project with: 
+
+```bash
+cargo afl build --features afl_fuzz
+```
+
+AFL strictly requires starting inputs, and will not execute at all without being provided an input directory containing at least one example input.
+To generate seeds inputs to be used by AFL: 
+
+```bash
+cd write_seed && cargo run -- in 
+```
+
+Finally you can run the fuzzer:
+```bash
+cargo afl fuzz -i write_seed/in -o ../target/out -- ../target/debug/bdk_wallet_target
+```
+### Running with HongFuzz
+
+To install honggfuzz, simply run:
+
+```bash
+cargo update
+cargo install --force honggfuzz
+```
+To run fuzzing using honggfuzz, do:
+
+```bash
+export CPU_COUNT=1 # replace as needed
+export HFUZZ_BUILD_ARGS="--features honggfuzz_fuzz"
+export HFUZZ_RUN_ARGS="-n $CPU_COUNT --exit_upon_crash"
+export TARGET="bdk_wallet_target" # replace with the target to be fuzzed
+cargo hfuzz run bdk_wallet_target --manifest-path Cargo.toml
+```
 ## How do I add a new fuzz test target?
 
 1. Define new arbitrary types in `src/arbitrary_types.rs`
 2. Implement the `Arbitrary` trait with appropriate constraints
 3. Add conversion methods to BDK types
-4. Create a new fuzz target in `fuzz_targets/`:
+4. Create a new fuzz target in `src/`:
 
 ```rust
 #![no_main]
@@ -75,12 +118,12 @@ fuzz_target!(|input: YourFuzzInput| {
 When the fuzzer finds a crash, it saves the input to `fuzz/artifacts/`. To reproduce:
 
 ```bash
-cargo +nightly fuzz run bdk_wallet fuzz/artifacts/bdk_wallet/crash-<hash>
+cargo +nightly fuzz run bdk_wallet_target fuzz/artifacts/bdk_wallet/crash-<hash>
 ```
 
 You can also minimize the crash input:
 ```bash
-cargo +nightly fuzz tmin bdk_wallet fuzz/artifacts/bdk_wallet/crash-<hash>
+cargo +nightly fuzz tmin bdk_wallet_target fuzz/artifacts/bdk_wallet/crash-<hash>
 ```
 
 # How do I generate coverage report?
