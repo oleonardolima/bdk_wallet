@@ -1,3 +1,5 @@
+import? "justfile.local"
+
 alias b := build
 alias c := check
 alias f := fmt

@@ -4,6 +4,7 @@ Cargo.lock
 
 *.swp
 .idea
+justfile.local
 
 # Example persisted files.
 *.db
