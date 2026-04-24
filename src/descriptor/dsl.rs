@@ -395,7 +395,7 @@ macro_rules! apply_modifier {
         })
     }};
     ( l: $inner:expr ) => {{
-        $inner.and_then(|(a_minisc, a_keymap, a_networks_kinds)| {
+        $inner.and_then(|(a_minisc, a_keymap, a_network_kinds)| {
             $crate::impl_leaf_opcode_value_two!(
                 OrI,
                 $crate::alloc::sync::Arc::new($crate::fragment!(false).unwrap().0),
@@ -405,7 +405,7 @@ macro_rules! apply_modifier {
         })
     }};
     ( u: $inner:expr ) => {{
-        $inner.and_then(|(a_minisc, a_keymap, a_networks)| {
+        $inner.and_then(|(a_minisc, a_keymap, a_network_kinds)| {
             $crate::impl_leaf_opcode_value_two!(
                 OrI,
                 $crate::alloc::sync::Arc::new(a_minisc),
@@ -1249,5 +1249,19 @@ mod test {
         let (descriptor, _, _) = descriptor!(tr(private_key, pk(private_key))).unwrap();
 
         assert_eq!(descriptor.to_string(), "tr(02e96fe52ef0e22d2f131dd425ce1893073a3c6ad20e8cac36726393dfb4856a4c,pk(02e96fe52ef0e22d2f131dd425ce1893073a3c6ad20e8cac36726393dfb4856a4c))#lzl2vmc7")
+    }
+
+    #[test]
+    fn test_dsl_l_and_u_modifiers() {
+        let private_key =
+            PrivateKey::from_wif("cSQPHDBwXGjVzWRqAHm6zfvQhaTuj1f2bFH58h55ghbjtFwvmeXR").unwrap();
+
+        // Test l: modifier - or_i(false, X)
+        let (l_desc, _, _) = descriptor!(wsh(l: pk(private_key))).unwrap();
+        assert!(l_desc.to_string().contains("l:pk("));
+
+        // Test u: modifier - or_i(X, false)
+        let (u_desc, _, _) = descriptor!(wsh(u: pk(private_key))).unwrap();
+        assert!(u_desc.to_string().contains("u:pk("));
     }
 }
