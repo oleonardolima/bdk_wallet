@@ -10,14 +10,14 @@ use bdk_wallet::bitcoin::{
 use bdk_wallet::{
     chain::{BlockId, ConfirmationBlockTime},
     rusqlite::Connection,
-    KeychainKind, PersistedWallet, SignOptions, Update,
+    KeychainKind, PersistedWallet, Update,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 // Import and re-export the base types from the original module
-use crate::arbitrary_types::FuzzedOutPoint;
-pub use crate::arbitrary_types::{EXTERNAL_DESCRIPTOR, INTERNAL_DESCRIPTOR, NETWORK};
+use crate::types::arbitrary_types::FuzzedOutPoint;
+pub use crate::types::arbitrary_types::{EXTERNAL_DESCRIPTOR, INTERNAL_DESCRIPTOR, NETWORK};
 
 /// Optimized transaction with fewer inputs/outputs
 #[derive(Debug, Clone)]
@@ -296,33 +296,5 @@ impl Arbitrary<'_> for OptimizedFuzzInput {
         }
 
         Ok(OptimizedFuzzInput { operations })
-    }
-}
-
-impl OptimizedFuzzInput {
-    pub fn execute(
-        self,
-        wallet: &mut PersistedWallet<Connection>,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        for operation in self.operations {
-            match operation {
-                OptimizedWalletOperation::ApplyUpdate(update) => {
-                    let update = update.into_update(wallet);
-                    wallet.apply_update(update)?;
-                }
-                OptimizedWalletOperation::CreateTransaction { builder, should_sign } => {
-                    let mut psbt = match builder.build_with_wallet(wallet) {
-                        Ok(psbt) => psbt,
-                        Err(_) => continue,
-                    };
-
-                    if should_sign {
-                        // Use default sign options for performance
-                        let _ = wallet.sign(&mut psbt, SignOptions::default());
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 }

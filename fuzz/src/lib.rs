@@ -3,5 +3,6 @@
 //! This library provides structure-aware fuzzing for BDK wallet components
 //! using the Arbitrary trait for efficient test input generation.
 
-pub mod arbitrary_types;
-pub mod arbitrary_types_optimized;
+pub mod bdk_wallet;
+pub mod bdk_wallet_optimized;
+pub mod types;

@@ -15,3 +15,7 @@ fuzz/target
 fuzz/corpus
 fuzz/artifacts
 fuzz/coverage
+fuzz/in
+fuzz/out
+fuzz/hfuzz_target
+fuzz/hfuzz_workspace
