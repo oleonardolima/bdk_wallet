@@ -1957,6 +1957,29 @@ impl Wallet {
         self.tx_graph.index.last_revealed_index(keychain)
     }
 
+    /// Return the [`SpkMetadata`] for the given `keychain`.
+    ///
+    /// This captures the sorted list of used derivation indexes.
+    pub fn spk_metadata(&self, keychain: KeychainKind) -> SpkMetadata {
+        SpkMetadata::from_index(&self.tx_graph.index, self.map_keychain(keychain))
+    }
+
+    /// Apply [`SpkMetadata`] to the wallet.
+    ///
+    /// This reveals addresses up to the highest used index and marks each
+    /// used index, so that a subsequent
+    /// [`start_sync_with_revealed_spks`](Self::start_sync_with_revealed_spks)
+    /// covers the right range without needing a full scan.
+    pub fn apply_spk_metadata(&mut self, metadata: &SpkMetadata) {
+        let keychain = self.map_keychain(metadata.keychain);
+        if let Some(&last) = metadata.used_indexes.last() {
+            let _ = self.reveal_addresses_to(keychain, last);
+        }
+        for &index in &metadata.used_indexes {
+            self.mark_used(keychain, index);
+        }
+    }
+
     /// The index of the next address that you would get if you were to ask the wallet for a new
     /// address.
     pub fn next_derivation_index(&self, keychain: KeychainKind) -> u32 {
@@ -2949,6 +2972,7 @@ mod test {
     use crate::miniscript::Error::Unexpected;
     use crate::test_utils::get_test_tr_single_sig_xprv_and_change_desc;
     use crate::test_utils::insert_tx;
+    use crate::test_utils::{get_funded_wallet_wpkh, get_test_wpkh_and_change_desc};
 
     #[test]
     fn not_duplicated_utxos_across_optional_and_required() {
@@ -3101,5 +3125,25 @@ mod test {
         // Wallet name should be main_checksum + change_checksum
         let wallet_name = result_with_change.unwrap();
         assert_eq!(wallet_name, "vn4aqs37jgrerlc3");
+    }
+
+    #[test]
+    fn test_spk_metadata_funded_wallet() {
+        let (wallet, _txid) = get_funded_wallet_wpkh();
+
+        let meta = wallet.spk_metadata(KeychainKind::External);
+        assert!(!meta.used_indexes.is_empty());
+    }
+
+    #[test]
+    fn test_spk_metadata_empty_wallet() {
+        let (desc, change_desc) = get_test_wpkh_and_change_desc();
+        let wallet = Wallet::create(desc, change_desc)
+            .network(Network::Regtest)
+            .create_wallet_no_persist()
+            .unwrap();
+
+        let meta = wallet.spk_metadata(KeychainKind::External);
+        assert!(meta.used_indexes.is_empty());
     }
 }

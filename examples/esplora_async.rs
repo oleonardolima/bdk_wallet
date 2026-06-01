@@ -3,7 +3,7 @@ use bdk_wallet::{
     bitcoin::{Amount, FeeRate, Network},
     psbt::PsbtUtils,
     rusqlite::Connection,
-    KeychainKind, SignOptions, Wallet,
+    KeychainKind, SignOptions, SpkMetadata, Wallet,
 };
 use std::{collections::BTreeSet, io::Write};
 use tokio::time::{sleep, Duration};
@@ -17,6 +17,10 @@ const NETWORK: Network = Network::Testnet4;
 const EXTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/0/*)";
 const INTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
 const ESPLORA_URL: &str = "https://mempool.space/testnet4/api";
+
+// In a real application this would be stored/transmitted externally.
+// Here we use a file to simulate persisting the exported metadata.
+const METADATA_PATH: &str = "bdk-example-spk-metadata.json";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -41,33 +45,67 @@ async fn main() -> Result<(), anyhow::Error> {
     let balance = wallet.balance();
     println!("Wallet balance before syncing: {}", balance.total());
 
-    println!("Full Sync...");
     let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
 
-    let request = wallet.start_full_scan().inspect({
-        let mut stdout = std::io::stdout();
-        let mut once = BTreeSet::<KeychainKind>::new();
-        move |keychain, spk_i, _| {
-            if once.insert(keychain) {
-                print!("\nScanning keychain [{keychain:?}]");
-            }
-            print!(" {spk_i:<3}");
-            stdout.flush().expect("must flush")
+    // Try to import previously exported SpkMetadata and use a targeted sync,
+    // falling back to a full scan if no metadata is available.
+    if let Some(metadata) = load_spk_metadata() {
+        println!("Found exported SpkMetadata, applying and syncing with revealed spks...");
+        for meta in &metadata {
+            wallet.apply_spk_metadata(meta);
         }
-    });
+        wallet.persist(&mut db)?;
 
-    let update = client
-        .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
-        .await?;
+        let sync_request = wallet.start_sync_with_revealed_spks().inspect({
+            let mut stdout = std::io::stdout();
+            let mut printed: u32 = 0;
+            move |_, sync_progress| {
+                let progress_percent =
+                    (100 * sync_progress.consumed()) as f32 / sync_progress.total() as f32;
+                let progress_percent = progress_percent.round() as u32;
+                if progress_percent % 5 == 0 && progress_percent > printed {
+                    print!("{progress_percent}% ");
+                    stdout.flush().expect("must flush");
+                    printed = progress_percent;
+                }
+            }
+        });
+        let update = client.sync(sync_request, PARALLEL_REQUESTS).await?;
+        println!();
+        wallet.apply_update(update)?;
+    } else {
+        println!("No SpkMetadata found, performing full scan...");
+        let request = wallet.start_full_scan().inspect({
+            let mut stdout = std::io::stdout();
+            let mut once = BTreeSet::<KeychainKind>::new();
+            move |keychain, spk_i, _| {
+                if once.insert(keychain) {
+                    print!("\nScanning keychain [{keychain:?}]");
+                }
+                print!(" {spk_i:<3}");
+                stdout.flush().expect("must flush")
+            }
+        });
 
-    wallet.apply_update(update)?;
+        let update = client
+            .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
+            .await?;
+        println!();
+        wallet.apply_update(update)?;
+    }
+
     wallet.persist(&mut db)?;
-    println!();
+
+    // Export SpkMetadata to base64 for future runs.
+    let external_meta = wallet.spk_metadata(KeychainKind::External);
+    let internal_meta = wallet.spk_metadata(KeychainKind::Internal);
+    save_spk_metadata(&external_meta, &internal_meta);
+    println!("Exported SpkMetadata to {METADATA_PATH}");
 
     let balance = wallet.balance();
-    println!("Wallet balance after full sync: {}", balance.total());
+    println!("Wallet balance after sync: {}", balance.total());
     println!(
-        "Wallet has {} transactions and {} utxos after full sync",
+        "Wallet has {} transactions and {} utxos",
         wallet.transactions().count(),
         wallet.list_unspent().count()
     );
@@ -173,6 +211,11 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("Applied {} evicted transactions", evicted_txs.len());
     }
 
+    // Re-export metadata after sync so next run picks up any new used indexes.
+    let external_meta = wallet.spk_metadata(KeychainKind::External);
+    let internal_meta = wallet.spk_metadata(KeychainKind::Internal);
+    save_spk_metadata(&external_meta, &internal_meta);
+
     wallet.persist(&mut db)?;
 
     let balance_after_sync = wallet.balance();
@@ -184,4 +227,38 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     Ok(())
+}
+
+/// Save SpkMetadata for both keychains as base64-encoded Elias-Fano to a JSON file.
+fn save_spk_metadata(external: &SpkMetadata, internal: &SpkMetadata) {
+    let data = serde_json::json!({
+        "external": external.encode_base64(),
+        "internal": internal.encode_base64(),
+    });
+    std::fs::write(METADATA_PATH, data.to_string()).expect("failed to write metadata");
+}
+
+/// Load SpkMetadata from a previously saved JSON file with base64-encoded Elias-Fano.
+fn load_spk_metadata() -> Option<Vec<SpkMetadata>> {
+    let contents = std::fs::read_to_string(METADATA_PATH).ok()?;
+    let data: serde_json::Value = serde_json::from_str(&contents).ok()?;
+
+    let mut result = Vec::new();
+
+    if let Some(b64) = data["external"].as_str() {
+        if let Some(meta) = SpkMetadata::decode_base64(b64, KeychainKind::External) {
+            result.push(meta);
+        }
+    }
+    if let Some(b64) = data["internal"].as_str() {
+        if let Some(meta) = SpkMetadata::decode_base64(b64, KeychainKind::Internal) {
+            result.push(meta);
+        }
+    }
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
