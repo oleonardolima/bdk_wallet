@@ -162,15 +162,18 @@ jobs:
       - name: Check docs
         run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
 
-  check-signed-commits:
+  signed_commits_check:
     name: Check signed commits
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
           persist-credentials: false
       - name: Verify all commits are GPG signed
-        run: ./ci/check-signed-commits.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+        run: |
+          if [ "$(git log --pretty='format:%G?' -1 HEAD)" = "N" ]; then
+              echo "ERROR: BDK requires that commits be signed, see CONTRIBUTING.md."
+              exit 1
+          fi
+          echo "All commits are GPG signed."
