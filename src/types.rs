@@ -10,6 +10,9 @@
 // licenses.
 
 use alloc::boxed::Box;
+#[cfg(feature = "elias-fano")]
+use alloc::string::String;
+use alloc::vec::Vec;
 use chain::{ChainPosition, ConfirmationBlockTime};
 use core::convert::AsRef;
 use core::fmt;
@@ -141,6 +144,85 @@ impl Utxo {
     }
 }
 
+/// Derivation index metadata for a single keychain descriptor.
+///
+/// Captures the sorted list of used derivation indexes as flat integer data
+/// suitable for encoding and export formats.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct SpkMetadata {
+    /// The keychain this metadata belongs to.
+    pub keychain: KeychainKind,
+    /// Sorted derivation indexes that have been used (have on-chain `TxOut`s).
+    pub used_indexes: Vec<u32>,
+}
+
+impl SpkMetadata {
+    /// Build [`SpkMetadata`] from a [`KeychainTxOutIndex`] for the given `keychain`.
+    pub fn from_index(
+        index: &chain::indexer::keychain_txout::KeychainTxOutIndex<KeychainKind>,
+        keychain: KeychainKind,
+    ) -> Self {
+        let mut used_indexes: Vec<u32> = index
+            .keychain_outpoints(keychain)
+            .map(|(idx, _)| idx)
+            .collect();
+        used_indexes.dedup();
+        Self {
+            keychain,
+            used_indexes,
+        }
+    }
+}
+
+#[cfg(feature = "elias-fano")]
+impl SpkMetadata {
+    /// Encode `used_indexes` as an Elias-Fano representation.
+    ///
+    /// Returns `None` if there are no used indexes.
+    pub fn encode_elias_fano(&self) -> Option<sux::prelude::EliasFano> {
+        use sux::prelude::EliasFanoBuilder;
+
+        let n = self.used_indexes.len();
+        if n == 0 {
+            return None;
+        }
+        let upper_bound = *self.used_indexes.last().unwrap() as usize + 1;
+
+        let mut efb = EliasFanoBuilder::new(n, upper_bound);
+        for &idx in &self.used_indexes {
+            efb.push(idx as usize);
+        }
+        Some(efb.build())
+    }
+
+    /// Encode `used_indexes` as an Elias-Fano representation serialized to a
+    /// base64 string.
+    ///
+    /// Returns `None` if there are no used indexes.
+    pub fn encode_base64(&self) -> Option<String> {
+        use bitcoin::base64::prelude::{Engine as _, BASE64_STANDARD};
+
+        let ef = self.encode_elias_fano()?;
+        let json = serde_json::to_vec(&ef).expect("EliasFano serialization must not fail");
+        Some(BASE64_STANDARD.encode(&json))
+    }
+
+    /// Decode a base64-encoded Elias-Fano representation back into [`SpkMetadata`].
+    ///
+    /// Returns `None` if the input is empty or decoding fails.
+    pub fn decode_base64(b64: &str, keychain: KeychainKind) -> Option<Self> {
+        use bitcoin::base64::prelude::{Engine as _, BASE64_STANDARD};
+
+        let json_bytes = BASE64_STANDARD.decode(b64).ok()?;
+        let ef: sux::prelude::EliasFano = serde_json::from_slice(&json_bytes).ok()?;
+        let used_indexes: Vec<u32> = ef.into_iter().map(|v| v as u32).collect();
+        Some(Self {
+            keychain,
+            used_indexes,
+        })
+    }
+}
+
 /// Index out of bounds error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IndexOutOfBoundsError {
@@ -189,6 +271,58 @@ mod tests {
             }],
             output: vec![txout],
         }
+    }
+
+    #[test]
+    fn test_spk_metadata_construction() {
+        let meta = SpkMetadata {
+            keychain: KeychainKind::External,
+            used_indexes: vec![0, 1, 3],
+        };
+        assert_eq!(meta.keychain, KeychainKind::External);
+        assert_eq!(meta.used_indexes, vec![0, 1, 3]);
+    }
+
+    #[test]
+    fn test_spk_metadata_empty() {
+        let meta = SpkMetadata {
+            keychain: KeychainKind::Internal,
+            used_indexes: vec![],
+        };
+        assert_eq!(meta.keychain, KeychainKind::Internal);
+        assert!(meta.used_indexes.is_empty());
+    }
+
+    #[test]
+    #[cfg(feature = "elias-fano")]
+    fn test_spk_metadata_elias_fano_round_trip() {
+        let meta = SpkMetadata {
+            keychain: KeychainKind::External,
+            used_indexes: vec![0, 2, 5, 7],
+        };
+
+        // Encode to EliasFano and verify values
+        let ef = meta.encode_elias_fano().unwrap();
+        let decoded: Vec<usize> = ef.into_iter().collect();
+        assert_eq!(decoded, vec![0, 2, 5, 7]);
+
+        // Round-trip through base64
+        let b64 = meta.encode_base64().unwrap();
+        let decoded_meta =
+            SpkMetadata::decode_base64(&b64, KeychainKind::External).unwrap();
+        assert_eq!(decoded_meta, meta);
+    }
+
+    #[test]
+    #[cfg(feature = "elias-fano")]
+    fn test_spk_metadata_elias_fano_empty() {
+        let meta = SpkMetadata {
+            keychain: KeychainKind::External,
+            used_indexes: vec![],
+        };
+        assert!(meta.encode_elias_fano().is_none());
+        assert!(meta.encode_base64().is_none());
+        assert!(SpkMetadata::decode_base64("", KeychainKind::External).is_none());
     }
 
     #[test]
